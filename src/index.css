@@ -1,0 +1,83 @@
+/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    font-family: 'Sarabun', system-ui, sans-serif;
+  }
+
+  td {
+    @apply text-gray-200;
+  }
+  
+  .a4-paper {
+    width: 210mm;
+    min-height: 297mm;
+  }
+
+  @page {
+    /* --- FIX: Changed default to Portrait for worksheets --- */
+    size: A4 portrait; 
+    margin: 2cm;
+  }
+
+  @media print {
+    body {
+      font-family: 'Sarabun', sans-serif;
+      color: black;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* --- FIX: More aggressive scrollbar hiding --- */
+    ::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    * {
+      scrollbar-width: none !important; /* For Firefox */
+    }
+
+    .print\:hidden {
+      display: none !important;
+    }
+    
+    .print\:block {
+      display: block !important;
+    }
+    
+    .print-table th, .print-table td {
+      border: 1px solid black;
+      padding: 4px;
+      font-size: 10pt;
+      color: black !important;
+    }
+    
+    .print-table th {
+      background-color: #e2e8f0 !important;
+    }
+
+    .school-header {
+      text-align: center !important;
+    }
+    
+    .printable-content-area {
+      background: transparent !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      height: auto !important;
+    }
+    .a4-paper {
+      box-shadow: none !important;
+      margin: 0 !important;
+      width: 100% !important;
+      min-height: auto !important;
+      padding: 0 !important;
+    }
+  }
+}
