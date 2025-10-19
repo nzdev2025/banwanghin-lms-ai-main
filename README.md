@@ -47,8 +47,8 @@
 2. เลือกโฟลเดอร์ปลายทางที่ต้องการเก็บโปรเจ็กต์ (เช่น `D:\Projects`)
 3. รันคำสั่ง
    ```bash
-   git clone https://github.com/nzdev2025/banwanghin-lms_v3_unstable.git
-   cd banwanghin-lms_v3_unstable
+   git clone https://github.com/nzdev2025/banwanghin-lms-ai-main.git
+   cd banwanghin-lms-ai-main
    ```
 4. ติดตั้งแพ็กเกจที่โปรเจ็กต์ต้องใช้
    ```bash
