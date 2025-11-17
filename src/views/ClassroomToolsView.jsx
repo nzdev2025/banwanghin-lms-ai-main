@@ -1,5 +1,5 @@
 import React from 'react';
-import { Presentation } from 'lucide-react';
+import { Bolt, Presentation } from 'lucide-react';
 
 const ToolCard = ({ icon, title, description, onClick }) => (
   <div 
@@ -18,6 +18,12 @@ const ToolCard = ({ icon, title, description, onClick }) => (
 
 const ClassroomToolsView = ({ openModal }) => {
   const tools = [
+    {
+      icon: <Bolt size={24} className="text-purple-400" />,
+      title: 'Lightning Quiz (Beta)',
+      description: 'สร้าง/โฮสต์เกมตอบเร็วในแอป ไม่ต้องสลับไป Kahoot',
+      action: () => openModal('lightningQuiz'),
+    },
     {
       icon: <Presentation size={24} className="text-blue-400" />,
       title: 'Classroom Toolkit',

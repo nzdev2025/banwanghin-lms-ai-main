@@ -11,7 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, auth, onAuthStateChanged, handleLogout } from './firebase/firebase';
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
 
 // Layout
 import Header from './components/layout/Header';
@@ -26,6 +26,7 @@ import StudentsView from './views/StudentsView';
 import ToolsView from './views/ToolsView';
 import ClassroomToolsView from './views/ClassroomToolsView';
 import SettingsView from './views/SettingsView';
+import LightningQuizJoinView from './views/LightningQuizJoinView';
 import Icon from './icons/Icon';
 
 // Modals
@@ -40,6 +41,7 @@ import ClassroomToolkitModal from './components/modals/ClassroomToolkitModal';
 import AIWorksheetGeneratorModal from './components/modals/AIWorksheetGeneratorModal';
 import LineNotifySettingsModal from './components/modals/LineNotifySettingsModal';
 import AttendanceModal from './components/modals/AttendanceModal';
+import LightningQuizModal from './components/modals/LightningQuizModal';
 import HealthRecordModal from './components/modals/HealthRecordModal';
 import DevelopmentalAssessmentModal from './components/modals/DevelopmentalAssessmentModal';
 import Pp5GeneratorModal from './components/modals/Pp5GeneratorModal';
@@ -51,6 +53,8 @@ function App() {
   const [subjects, setSubjects] = useState([]);
   const appId = 'banwanghin-lms-dev';
   const [modalStack, setModalStack] = useState([]);
+  const location = useLocation();
+  const isPublicQuizRoute = location.pathname.startsWith('/quiz');
 
   // Subscribe to auth state changes
   useEffect(() => {
@@ -80,6 +84,14 @@ function App() {
     setModalStack((prev) => prev.slice(0, prev.length - 1));
   };
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
+
+  if (isPublicQuizRoute) {
+    return (
+      <ErrorBoundary>
+        <LightningQuizJoinView />
+      </ErrorBoundary>
+    );
+  }
 
   if (authLoading) {
     return (
@@ -183,6 +195,8 @@ function App() {
             return <AIWorksheetGeneratorModal key={index} onClose={closeModal} />;
           case 'aiLessonPlan':
             return <AILessonPlanGeneratorModal key={index} onClose={closeModal} />;
+          case 'lightningQuiz':
+            return <LightningQuizModal key={index} onClose={closeModal} />;
           case 'classroomToolkit':
             return <ClassroomToolkitModal key={index} onClose={closeModal} />;
           case 'healthRecord':
