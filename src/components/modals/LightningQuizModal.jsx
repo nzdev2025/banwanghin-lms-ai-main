@@ -1,6 +1,7 @@
-import React from 'react';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { db, appId } from '../../firebase/firebase';
+import React, { useRef } from 'react';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { db, appId, logActivity } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 
 const quizSetsPath = `artifacts/${appId}/public/data/quiz_sets`;
@@ -31,6 +32,16 @@ const LightningQuizModal = ({ onClose }) => {
   const [activeSession, setActiveSession] = React.useState(null);
   const [sessionDoc, setSessionDoc] = React.useState(null);
   const [answerCounts, setAnswerCounts] = React.useState([]);
+  const [editingSetId, setEditingSetId] = React.useState(null);
+  const [participantCount, setParticipantCount] = React.useState(0);
+  const [scoreboard, setScoreboard] = React.useState([]);
+  const [exporting, setExporting] = React.useState(false);
+  const [isRevealing, setIsRevealing] = React.useState(false);
+  const [timeLeft, setTimeLeft] = React.useState(null);
+  const autoRevealKey = useRef(null);
+  const POINTS_PER_CORRECT = 10;
+  const [questionDuration, setQuestionDuration] = React.useState(20);
+  const [questionStats, setQuestionStats] = React.useState([]);
   const [isStartingSession, setIsStartingSession] = React.useState(false);
   const [error, setError] = React.useState('');
   const [copySuccess, setCopySuccess] = React.useState(false);
@@ -55,23 +66,100 @@ const LightningQuizModal = ({ onClose }) => {
   const selectedSet = React.useMemo(() => quizSets.find((set) => set.id === selectedSetId), [quizSets, selectedSetId]);
 
   // Subscribe session doc and answers of current question when hosting
+  // Subscribe session & participants
   React.useEffect(() => {
     if (!db || !activeSession) {
       setSessionDoc(null);
       setAnswerCounts([]);
-      return undefined;
-    }
+      setParticipantCount(0);
+      setScoreboard([]);
+      setTimeLeft(null);
+      setQuestionStats([]);
+    return undefined;
+  }
     const sessionRef = doc(db, `${quizSessionsPath}/${activeSession.id}`);
     const unsubSession = onSnapshot(sessionRef, (snap) => {
       if (snap.exists()) {
         setSessionDoc({ id: snap.id, ...snap.data() });
       }
     });
+    const participantsRef = collection(db, `${quizSessionsPath}/${activeSession.id}/participants`);
+    const unsubParticipants = onSnapshot(participantsRef, (snap) => {
+      setParticipantCount(snap.size);
+    });
     return () => {
       unsubSession();
+     unsubParticipants();
       setAnswerCounts([]);
+      setParticipantCount(0);
+      setScoreboard([]);
+      setTimeLeft(null);
+      setQuestionStats([]);
     };
   }, [db, activeSession]);
+
+  // Subscribe answers for scoring/statistics based on latest questions
+  React.useEffect(() => {
+    if (!db || !activeSession || !sessionDoc?.questions) return undefined;
+    const answersAllRef = collection(db, `${quizSessionsPath}/${activeSession.id}/answers`);
+    const unsubAnswersAll = onSnapshot(answersAllRef, (snap) => {
+      const scores = {};
+      const stats = (sessionDoc.questions || []).map(() => ({}));
+      snap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const qIndex = data.questionIndex;
+        const alias = data.alias || 'ไม่ระบุ';
+        const optionIndex = data.optionIndex;
+        const question = sessionDoc.questions?.[qIndex];
+        const isCorrect = question && Number(optionIndex) === Number(question.answerIndex);
+        if (stats[qIndex]) {
+          stats[qIndex][optionIndex] = (stats[qIndex][optionIndex] || 0) + 1;
+        }
+        scores[alias] = {
+          answered: (scores[alias]?.answered || 0) + 1,
+          score: (scores[alias]?.score || 0) + (isCorrect ? POINTS_PER_CORRECT : 0),
+        };
+      });
+      const ranking = Object.entries(scores)
+        .map(([name, info]) => ({ alias: name, ...info }))
+        .sort((a, b) => b.score - a.score || b.answered - a.answered);
+      setScoreboard(ranking);
+      setQuestionStats(stats);
+    });
+    return () => {
+      unsubAnswersAll();
+      setAnswerCounts([]);
+      setScoreboard([]);
+      setQuestionStats([]);
+    };
+  }, [db, activeSession, sessionDoc?.questions]);
+
+  // Countdown timer for current question
+  React.useEffect(() => {
+    if (!sessionDoc?.questionEndsAt || sessionDoc.currentQuestionIndex === null) {
+      setTimeLeft(null);
+      return undefined;
+    }
+    const interval = setInterval(() => {
+      const end = sessionDoc.questionEndsAt.toDate ? sessionDoc.questionEndsAt.toDate() : new Date(sessionDoc.questionEndsAt);
+      const ms = end.getTime() - Date.now();
+      setTimeLeft(Math.max(0, Math.floor(ms / 1000)));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [sessionDoc?.questionEndsAt, sessionDoc?.currentQuestionIndex]);
+
+  // Auto-reveal when time is up
+  React.useEffect(() => {
+    if (!db || !activeSession || !sessionDoc || sessionDoc.status !== 'running') return;
+    if (timeLeft !== 0) return;
+    if (sessionDoc.revealAnswer) return;
+    const key = `${activeSession.id}-${sessionDoc.currentQuestionIndex}`;
+    if (autoRevealKey.current === key) return;
+    autoRevealKey.current = key;
+    updateDoc(doc(db, quizSessionsPath, activeSession.id), { revealAnswer: true }).catch((err) =>
+      console.error('auto reveal failed', err),
+    );
+  }, [db, activeSession, sessionDoc, timeLeft]);
 
   React.useEffect(() => {
     if (!db || !activeSession || sessionDoc?.currentQuestionIndex === null || sessionDoc?.currentQuestionIndex === undefined) {
@@ -127,19 +215,39 @@ const LightningQuizModal = ({ onClose }) => {
     }));
   };
 
-  const handleCreateSet = async () => {
+  const handleSaveSet = async () => {
     if (!db || !setForm.title.trim() || setForm.questions.length === 0) return;
     setIsSavingSet(true);
     setError('');
     try {
-      await addDoc(collection(db, quizSetsPath), {
-        title: setForm.title.trim(),
-        topic: setForm.topic.trim(),
-        instructions: setForm.instructions.trim(),
-        questions: setForm.questions,
-        questionCount: setForm.questions.length,
-        createdAt: serverTimestamp(),
-      });
+      if (editingSetId) {
+        const docRef = doc(db, quizSetsPath, editingSetId);
+        await setDoc(
+          docRef,
+          {
+            title: setForm.title.trim(),
+            topic: setForm.topic.trim(),
+            instructions: setForm.instructions.trim(),
+            questions: setForm.questions,
+            questionCount: setForm.questions.length,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+        logActivity('QUIZ_SET_UPDATE', `อัปเดตชุดคำถาม <strong>${setForm.title}</strong>`);
+        setSelectedSetId(editingSetId);
+      } else {
+        const docRef = await addDoc(collection(db, quizSetsPath), {
+          title: setForm.title.trim(),
+          topic: setForm.topic.trim(),
+          instructions: setForm.instructions.trim(),
+          questions: setForm.questions,
+          questionCount: setForm.questions.length,
+          createdAt: serverTimestamp(),
+        });
+        logActivity('QUIZ_SET_CREATE', `สร้างชุดคำถามใหม่ <strong>${setForm.title}</strong>`);
+        setSelectedSetId(docRef.id);
+      }
       setSetForm({
         title: '',
         topic: '',
@@ -148,8 +256,9 @@ const LightningQuizModal = ({ onClose }) => {
       });
       setQuestionDraft(defaultQuestionDraft);
       setCreatingSet(false);
+      setEditingSetId(null);
     } catch (err) {
-      console.error('Error creating quiz set', err);
+      console.error('Error saving quiz set', err);
       setError('บันทึกชุดคำถามไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setIsSavingSet(false);
@@ -179,6 +288,7 @@ const LightningQuizModal = ({ onClose }) => {
         sessionCode: code,
         quizTitle: selectedSet.title,
       });
+      logActivity('QUIZ_SESSION_START', `เริ่มเกม Lightning Quiz: <strong>${selectedSet.title}</strong> (PIN ${code})`);
     } catch (err) {
       console.error('Error starting quiz session', err);
       setError('ไม่สามารถเริ่มเกมได้ กรุณาลองใหม่');
@@ -205,18 +315,67 @@ const LightningQuizModal = ({ onClose }) => {
         : sessionDoc.currentQuestionIndex + 1;
     if (nextIndex >= (sessionDoc.questions?.length || 0)) {
       await updateDoc(doc(db, quizSessionsPath, activeSession.id), { status: 'completed', currentQuestionIndex: null });
+      logActivity('QUIZ_SESSION_END', `จบเกม PIN ${activeSession.sessionCode}`);
       return;
     }
     await updateDoc(doc(db, quizSessionsPath, activeSession.id), {
       status: 'running',
       currentQuestionIndex: nextIndex,
       questionStartedAt: serverTimestamp(),
+      revealAnswer: false,
+      questionEndsAt: new Date(Date.now() + questionDuration * 1000),
+      questionDuration,
     });
+    logActivity('QUIZ_QUESTION_START', `เริ่มข้อที่ ${nextIndex + 1} ใน PIN ${activeSession.sessionCode}`);
   };
 
   const handleEndSession = async () => {
     if (!db || !activeSession) return;
-    await updateDoc(doc(db, quizSessionsPath, activeSession.id), { status: 'completed', currentQuestionIndex: null });
+    await updateDoc(doc(db, quizSessionsPath, activeSession.id), {
+      status: 'completed',
+      currentQuestionIndex: null,
+      revealAnswer: false,
+      questionEndsAt: null,
+    });
+    logActivity('QUIZ_SESSION_END', `จบเกม PIN ${activeSession.sessionCode}`);
+  };
+
+  const handleRevealAnswer = async () => {
+    if (!db || !activeSession) return;
+    setIsRevealing(true);
+    try {
+      await updateDoc(doc(db, quizSessionsPath, activeSession.id), { revealAnswer: true });
+      logActivity('QUIZ_QUESTION_REVEAL', `เฉลยคำถามขณะ PIN ${activeSession.sessionCode}`);
+    } catch (err) {
+      console.error('reveal failed', err);
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  const handleExportSummary = () => {
+    if (!sessionDoc || scoreboard.length === 0) return;
+    setExporting(true);
+    try {
+      const headers = ['alias', 'score', 'answered', 'sessionCode', 'quizTitle'];
+      const rows = scoreboard.map((row) => [
+        `"${row.alias.replace(/"/g, '""')}"`,
+        row.score,
+        row.answered,
+        sessionDoc.sessionCode || '',
+        `"${(sessionDoc.quizTitle || '').replace(/"/g, '""')}"`,
+      ]);
+      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quiz_summary_${sessionDoc.sessionCode || 'session'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleCopyJoinLink = () => {
@@ -368,15 +527,30 @@ const LightningQuizModal = ({ onClose }) => {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleCreateSet}
-                  disabled={isSavingSet || !setForm.title.trim() || setForm.questions.length === 0}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/90 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/30"
-                >
-                  {isSavingSet ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Save" size={16} />}
-                  บันทึกชุดคำถาม
-                </button>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveSet}
+                    disabled={isSavingSet || !setForm.title.trim() || setForm.questions.length === 0}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/90 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/30"
+                  >
+                    {isSavingSet ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Save" size={16} />}
+                    {editingSetId ? 'อัปเดตชุดคำถาม' : 'บันทึกชุดคำถาม'}
+                  </button>
+                  {editingSetId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSetId(null);
+                        setSetForm({ title: '', topic: '', instructions: '', questions: [] });
+                        setQuestionDraft(defaultQuestionDraft);
+                      }}
+                      className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                    >
+                      ยกเลิกแก้ไข
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -392,16 +566,61 @@ const LightningQuizModal = ({ onClose }) => {
                 </div>
               ) : (
                 <ul className="divide-y divide-white/5 text-sm">
-                  {quizSets.map((set) => (
-                    <li
-                      key={set.id}
-                      className={`cursor-pointer px-4 py-3 transition hover:bg-white/10 ${selectedSetId === set.id ? 'bg-white/10' : ''}`}
-                      onClick={() => setSelectedSetId(set.id)}
-                    >
-                      <p className="font-semibold text-white">{set.title}</p>
-                      <p className="text-xs text-white/70">{set.topic || 'ไม่มีคำอธิบาย'} · {set.questionCount || set.questions?.length || 0} ข้อ</p>
-                    </li>
-                  ))}
+                  {quizSets.map((set) => {
+                    const isActive = selectedSetId === set.id;
+                    return (
+                      <li
+                        key={set.id}
+                        className={`px-4 py-3 transition hover:bg-white/10 ${isActive ? 'bg-white/10' : 'cursor-pointer'}`}
+                        onClick={() => setSelectedSetId(set.id)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-white">{set.title}</p>
+                            <p className="text-xs text-white/70">{set.topic || 'ไม่มีคำอธิบาย'} · {set.questionCount || set.questions?.length || 0} ข้อ</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCreatingSet(true);
+                                setEditingSetId(set.id);
+                                setSetForm({
+                                  title: set.title || '',
+                                  topic: set.topic || '',
+                                  instructions: set.instructions || '',
+                                  questions: set.questions || [],
+                                });
+                                setQuestionDraft(defaultQuestionDraft);
+                              }}
+                              className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10"
+                            >
+                              แก้ไข
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!window.confirm('ยืนยันลบชุดคำถามนี้?')) return;
+                                try {
+                                  await deleteDoc(doc(db, quizSetsPath, set.id));
+                                  if (selectedSetId === set.id) setSelectedSetId(null);
+                                  if (editingSetId === set.id) setEditingSetId(null);
+                                } catch (err) {
+                                  console.error('delete set failed', err);
+                                  alert('ลบไม่สำเร็จ');
+                                }
+                              }}
+                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 transition hover:bg-rose-500/20"
+                            >
+                              ลบ
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -420,32 +639,66 @@ const LightningQuizModal = ({ onClose }) => {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-semibold text-white">รายละเอียดชุด</p>
-                    <p className="text-xs text-white/60">{selectedSet.instructions || '—'}</p>
-                    <ul className="mt-3 space-y-1 text-xs text-white/70 max-h-28 overflow-y-auto">
-                      {selectedSet.questions?.map((question, index) => (
-                        <li key={index}>
-                          {index + 1}. {question.text}
-                        </li>
-                      ))}
-                    </ul>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-white">รายละเอียดชุด</p>
+                          <span className="text-[11px] uppercase tracking-[0.25em] text-white/60">{sessionDoc?.status || 'waiting'}</span>
+                        </div>
+                        <p className="text-xs text-white/60">{selectedSet.instructions || '—'}</p>
+                        <ul className="mt-3 max-h-28 space-y-1 overflow-y-auto text-xs text-white/70">
+                          {selectedSet.questions?.map((question, index) => (
+                            <li key={index}>
+                              {index + 1}. {question.text}
+                            </li>
+                          ))}
+                        </ul>
+                        {sessionDoc?.status === 'running' && timeLeft !== null && (
+                          <p className="mt-2 text-xs text-amber-200">เวลาที่เหลือ: {timeLeft}s</p>
+                        )}
+                        {sessionDoc?.status === 'completed' && (
+                          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+                            <p className="font-semibold text-white">สรุปผล</p>
+                            <p>ผู้เข้าร่วม: {participantCount} คน</p>
+                            <p>ตอบรวม: {scoreboard.reduce((sum, s) => sum + (s.answered || 0), 0)} ครั้ง</p>
+                        <button
+                          type="button"
+                          onClick={handleExportSummary}
+                          disabled={scoreboard.length === 0 || exporting}
+                          className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-white/80 transition hover:bg-white/10 disabled:opacity-60"
+                        >
+                          {exporting ? <Icon name="Loader2" className="animate-spin" size={14} /> : <Icon name="Download" size={14} />}
+                          ส่งออก CSV
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm font-semibold text-white">เริ่มเกม</p>
-                  {activeSession ? (
+                        <p className="text-sm font-semibold text-white">เริ่มเกม</p>
+                      {activeSession ? (
                     <div className="mt-3 space-y-3 text-white">
                       <p className="text-4xl font-bold tracking-[0.3em] text-purple-200">{activeSession.sessionCode}</p>
-                      <p className="text-sm text-white/70">ให้เด็กเข้า <span className="font-semibold text-white">quiz.krukit</span> แล้วใส่ PIN ข้างต้น (อยู่ระหว่างพัฒนา)</p>
+                      <p className="text-sm text-white/70">
+                        ให้เด็กเข้า <span className="font-semibold text-white">quiz.krukit</span> แล้วใส่ PIN ข้างต้น
+                      </p>
+                      <p className="text-xs text-white/60">เข้าร่วมแล้ว: {participantCount} คน</p>
                       <div className="flex flex-wrap gap-3">
                         <button
                           type="button"
                           onClick={handleNextQuestion}
                           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-2 text-sm font-semibold transition hover:opacity-90"
                         >
-                          <Icon name="PlayCircle" size={18} />
-                          ถามคำถามถัดไป
+                          <Icon name={sessionDoc?.currentQuestionIndex === null ? 'PlayCircle' : 'StepForward'} size={18} />
+                          {sessionDoc?.currentQuestionIndex === null ? 'เริ่มถามคำถาม' : 'คำถามถัดไป'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRevealAnswer}
+                          disabled={sessionDoc?.revealAnswer || sessionDoc?.currentQuestionIndex === null}
+                          className="flex items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isRevealing ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Lightbulb" size={16} />}
+                          เฉลยคำตอบ
                         </button>
                         <button
                           type="button"
@@ -478,57 +731,176 @@ const LightningQuizModal = ({ onClose }) => {
                           </button>
                         </div>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleStartSession}
-                        disabled={isStartingSession}
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-3 text-sm font-semibold uppercase tracking-[0.3em] transition hover:opacity-90 disabled:opacity-60"
-                      >
-                        {isStartingSession ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="Bolt" size={18} />}
-                        {isStartingSession ? 'กำลังเปิด' : 'สร้าง PIN & เริ่ม'}
-                      </button>
-                    )}
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="text-xs text-white/70 flex items-center gap-2">
+                            เวลา/คำถาม (วินาที)
+                            <input
+                              type="number"
+                              min="10"
+                              max="120"
+                              value={questionDuration}
+                              onChange={(e) => setQuestionDuration(Math.max(10, Math.min(120, parseInt(e.target.value || '20', 10))))}
+                              className="w-20 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-white text-sm focus:border-purple-300 focus:outline-none"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleStartSession}
+                            disabled={isStartingSession}
+                            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-3 text-sm font-semibold uppercase tracking-[0.3em] transition hover:opacity-90 disabled:opacity-60"
+                          >
+                            {isStartingSession ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="Bolt" size={18} />}
+                            {isStartingSession ? 'กำลังเปิด' : 'สร้าง PIN & เริ่ม'}
+                          </button>
+                        </div>
+                      )}
                   </div>
 
                   <div className="flex flex-1 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-semibold text-white">Live Scoreboard</p>
-                    {sessionDoc?.currentQuestionIndex !== null && sessionDoc?.currentQuestionIndex !== undefined ? (
-                      <div className="mt-3 space-y-3">
-                        {(sessionDoc.questions?.[sessionDoc.currentQuestionIndex]?.options || []).map((opt, idx) => {
-                          const count = answerCounts.find((c) => c.optionIndex === idx)?.count || 0;
-                          return (
-                            <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                              <div className="flex items-center justify-between text-sm text-white/85">
-                                <span className="flex items-center gap-2">
-                                  <Icon name="CheckCircle" size={14} className="text-emerald-300" />
-                                  {opt}
-                                </span>
-                                <span className="text-xs text-white/70">{count} ตอบ</span>
-                              </div>
-                              <div className="mt-2 h-2 rounded-full bg-white/10">
-                                <div
-                                  className="h-2 rounded-full bg-gradient-to-r from-purple-400 to-blue-400"
-                                  style={{
-                                    width: `${Math.min(100, count * 20)}%`,
-                                  }}
-                                />
-                              </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">
+                        {sessionDoc?.status === 'completed' ? 'สรุปผลหลังเกม' : 'Live Scoreboard'}
+                      </p>
+                      {sessionDoc?.status === 'running' && timeLeft !== null && (
+                        <span className="text-[11px] text-amber-200">เหลือเวลา {timeLeft}s</span>
+                      )}
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                        <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/60">
+                          {sessionDoc?.status === 'completed' ? 'สรุปคำตอบแต่ละข้อ' : 'คำตอบปัจจุบัน'}
+                        </p>
+                        {sessionDoc?.status === 'completed' ? (
+                          <div className="space-y-3 max-h-64 overflow-auto pr-1">
+                            {sessionDoc?.questions?.map((q, idx) => {
+                              const counts = questionStats?.[idx] || {};
+                              const total = Object.values(counts).reduce((sum, v) => sum + v, 0);
+                              return (
+                                <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                  <p className="text-xs text-white/70">ข้อ {idx + 1}: {q.text}</p>
+                                  <div className="mt-2 space-y-1">
+                                    {(q.options || []).map((opt, optIdx) => {
+                                      const count = counts[optIdx] || 0;
+                                      const percent = total ? Math.round((count / total) * 100) : 0;
+                                      const isCorrect = Number(q.answerIndex) === optIdx;
+                                      return (
+                                        <div key={optIdx} className="text-[11px] text-white/75">
+                                          <div className="flex items-center justify-between">
+                                            <span className="flex items-center gap-2">
+                                              {isCorrect && <Icon name="Crown" size={12} className="text-amber-300" />}
+                                              {opt}
+                                            </span>
+                                            <span className="text-white/60">{count} ({percent}%)</span>
+                                          </div>
+                                          <div className="mt-1 h-1.5 rounded-full bg-white/10">
+                                            <div
+                                              className={`h-1.5 rounded-full ${isCorrect ? 'bg-emerald-400' : 'bg-white/30'}`}
+                                              style={{ width: `${percent}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : sessionDoc?.currentQuestionIndex !== null && sessionDoc?.currentQuestionIndex !== undefined ? (
+                          <div className="space-y-3">
+                            {(sessionDoc.questions?.[sessionDoc.currentQuestionIndex]?.options || []).map((opt, idx) => {
+                              const count = answerCounts.find((c) => c.optionIndex === idx)?.count || 0;
+                              return (
+                                <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                  <div className="flex items-center justify-between text-sm text-white/85">
+                                    <span className="flex items-center gap-2">
+                                      <Icon name="CheckCircle" size={14} className="text-emerald-300" />
+                                      {opt}
+                                    </span>
+                                    <span className="text-xs text-white/70">{count} ตอบ</span>
+                                  </div>
+                                  <div className="mt-2 h-2 rounded-full bg-white/10">
+                                    <div
+                                      className="h-2 rounded-full bg-gradient-to-r from-purple-400 to-blue-400"
+                                      style={{
+                                        width: `${Math.min(100, count * 20)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {answerCounts.length === 0 && (
+                              <p className="text-xs text-white/60">ยังไม่มีคำตอบเข้ามา</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-1 items-center justify-center text-xs text-white/70">
+                            <div className="text-center">
+                              <Icon name="Users" size={24} className="mx-auto text-white/40" />
+                              <p>จะแสดงผลเมื่อเริ่มคำถาม</p>
                             </div>
-                          );
-                        })}
-                        {answerCounts.length === 0 && (
-                          <p className="text-xs text-white/60">ยังไม่มีคำตอบเข้ามา</p>
+                          </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="flex flex-1 items-center justify-center text-xs text-white/70">
-                        <div className="text-center">
-                          <Icon name="Users" size={32} className="mx-auto text-white/40" />
-                          <p>จะแสดงผลเมื่อเริ่มคำถาม</p>
+
+                      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs uppercase tracking-[0.3em] text-white/60">Scoreboard</p>
+                          <p className="text-[11px] text-white/60">Top 5</p>
                         </div>
+                        {scoreboard.length === 0 ? (
+                          <p className="text-xs text-white/60">ยังไม่มีคะแนน</p>
+                        ) : (
+                          <div className="space-y-3">
+                            <ul className="space-y-2">
+                              {scoreboard.slice(0, 5).map((item, idx) => (
+                                <li
+                                  key={item.alias + idx}
+                                  className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[11px] font-bold text-white">
+                                      #{idx + 1}
+                                    </span>
+                                    <span className="font-semibold text-white">{item.alias}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-bold text-amber-200">{item.score} pts</p>
+                                    <p className="text-[11px] text-white/60">{item.answered} ข้อ</p>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+
+                            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                              <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-white/60">ภาพรวมคะแนน (Top 5)</p>
+                              <div className="h-56">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={scoreboard.slice(0, 5)} margin={{ top: 5, right: 10, left: -15, bottom: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                    <XAxis
+                                      dataKey="alias"
+                                      tick={{ fill: '#cbd5e1', fontSize: 11 }}
+                                      angle={-20}
+                                      textAnchor="end"
+                                      height={40}
+                                    />
+                                    <YAxis tick={{ fill: '#cbd5e1', fontSize: 11 }} />
+                                    <Tooltip
+                                      contentStyle={{ backgroundColor: 'rgba(9,12,24,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                      labelStyle={{ color: '#fff' }}
+                                    />
+                                    <Bar dataKey="score" fill="#fbbf24" radius={[6, 6, 0, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </>
               )}

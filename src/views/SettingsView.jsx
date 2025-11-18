@@ -28,7 +28,7 @@ const SettingsView = ({ openModal }) => {
     {
       icon: <BellRing size={24} className="text-lime-400" />,
       title: 'ตั้งค่าแจ้งเตือน',
-      description: 'ตั้งค่าการส่งข้อความแจ้งเตือนผ่าน LINE Notify',
+      description: 'ตั้งค่าการส่งข้อความแจ้งเตือนผ่าน LINE Notify',ถูก
       action: () => openModal('lineNotifySettings'),
     },
     {
