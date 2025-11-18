@@ -29,6 +29,7 @@
 - เพิ่ม summary หลังจบเกมบน host (ต่อข้อมี breakdown คำตอบ + scoreboard) และ export CSV ได้.
 - Anti-spam เบื้องต้น: ยืนยันชื่อเล่นผูกกับ deviceId; ปฏิเสธ alias เดิมจากอุปกรณ์อื่น; ส่งคำตอบต้องมี participant ที่ deviceId ตรงกัน; ถ้า device เคยลงทะเบียน alias แล้วจะบังคับใช้อัตโนมัติ.
 - เพิ่มกราฟคะแนน (BarChart) ใน scoreboard (Top 5) หลังจบเกม/ระหว่างเล่น.
+- เพิ่ม AI Quiz Generator: ครูกำหนดหัวข้อ/คำสำคัญ/จำนวนข้อ/ตัวเลือก/ความยาก แล้ว AI สร้างชุดคำถามพร้อมเฉลยและเติมลงฟอร์มอัตโนมัติ.
 
 ## 🎯 ฟีเจอร์ทั้งหมดที่วางแผน (Backlog & Next Steps)
 1) **Lightning Quiz**

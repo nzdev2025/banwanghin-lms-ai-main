@@ -18,6 +18,10 @@ const LightningQuizJoinView = () => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [timeLeft, setTimeLeft] = React.useState(null);
   const [participantDocId, setParticipantDocId] = React.useState(null);
+  const prevQuestionIndexRef = React.useRef(null);
+  const [myAnswers, setMyAnswers] = React.useState([]);
+  const POINTS_PER_CORRECT = 10;
+  const [scoreboard, setScoreboard] = React.useState([]);
 
   const deviceId = React.useMemo(() => {
     if (typeof localStorage === 'undefined') return 'device-' + Math.random().toString(36).slice(2);
@@ -102,6 +106,16 @@ const LightningQuizJoinView = () => {
       ? sessionDetail.questions[sessionDetail.currentQuestionIndex]
       : null;
 
+  // รีเซ็ตสถานะเมื่อมีการเปลี่ยนคำถาม
+  React.useEffect(() => {
+    const idx = sessionDetail?.currentQuestionIndex;
+    if (idx === null || idx === undefined) return;
+    if (prevQuestionIndexRef.current === idx) return;
+    prevQuestionIndexRef.current = idx;
+    setSelectedOption(null);
+    setSubmittedForQuestion(null);
+  }, [sessionDetail?.currentQuestionIndex]);
+
   // Countdown timer for student side
   React.useEffect(() => {
     if (!sessionDetail?.questionEndsAt || sessionDetail.currentQuestionIndex === null) {
@@ -117,6 +131,56 @@ const LightningQuizJoinView = () => {
     }, 500);
     return () => clearInterval(interval);
   }, [sessionDetail?.questionEndsAt, sessionDetail?.currentQuestionIndex]);
+
+  // Subscribe my answers
+  React.useEffect(() => {
+    if (!db || !sessionDetail?.id) return undefined;
+    const answersRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/answers`);
+    const qAnswer = query(answersRef, where('deviceId', '==', deviceId));
+    const unsub = onSnapshot(qAnswer, (snap) => {
+      setMyAnswers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [db, sessionDetail?.id, deviceId]);
+
+  // Subscribe scoreboard (top viewers)
+  React.useEffect(() => {
+    if (!db || !sessionDetail?.id) return undefined;
+    const answersRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/answers`);
+    const qAnswers = query(answersRef);
+    const unsub = onSnapshot(qAnswers, (snap) => {
+      const scores = {};
+      (sessionDetail?.questions || []).forEach((q, idx) => {
+        snap.docs.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.questionIndex !== idx) return;
+          const alias = data.alias || 'ไม่ระบุ';
+          const optionIndex = data.optionIndex;
+          const isCorrect = Number(optionIndex) === Number(q.answerIndex);
+          scores[alias] = {
+            answered: (scores[alias]?.answered || 0) + 1,
+            score: (scores[alias]?.score || 0) + (isCorrect ? POINTS_PER_CORRECT : 0),
+          };
+        });
+      });
+      const ranking = Object.entries(scores)
+        .map(([alias, info]) => ({ alias, ...info }))
+        .sort((a, b) => b.score - a.score || b.answered - a.answered);
+      setScoreboard(ranking);
+    });
+    return () => unsub();
+  }, [db, sessionDetail?.id, sessionDetail?.questions]);
+
+  const myScore = React.useMemo(() => {
+    if (!sessionDetail?.questions) return { correct: 0, total: 0, points: 0 };
+    const total = sessionDetail.questions.length;
+    let correct = 0;
+    sessionDetail.questions.forEach((q, idx) => {
+      const ans = myAnswers.find((a) => a.questionIndex === idx);
+      if (ans && Number(ans.optionIndex) === Number(q.answerIndex)) correct += 1;
+    });
+    return { correct, total, points: correct * POINTS_PER_CORRECT };
+  }, [sessionDetail?.questions, myAnswers]);
 
   const handleConfirmAlias = async () => {
     if (!db || !sessionDetail || !alias.trim()) return;
@@ -324,7 +388,101 @@ const LightningQuizJoinView = () => {
             </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111a34] via-[#0d1732] to-[#13254f] p-5 shadow-[0_20px_50px_-40px_rgba(0,0,0,0.8)]">
-              {currentQuestion && sessionDetail?.status === 'running' ? (
+              {sessionDetail?.status === 'completed' ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">Game Summary</p>
+                      <p className="text-lg font-semibold text-white">สรุปคะแนนของคุณ</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200">
+                        {myScore.points} pts • {myScore.correct}/{myScore.total} ข้อถูก
+                      </div>
+                      {scoreboard.length > 0 && (
+                        <div className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-200">
+                          อันดับคุณ: #
+                          {(() => {
+                            const idx = scoreboard.findIndex((s) => s.alias === alias);
+                            return idx >= 0 ? idx + 1 : '?';
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {scoreboard.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
+                      <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-2">Top 3</p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {scoreboard.slice(0, 3).map((item, idx) => (
+                          <div
+                            key={item.alias + idx}
+                            className="rounded-lg border border-white/10 bg-black/20 p-3 text-center shadow-[0_12px_30px_-22px_rgba(0,0,0,0.8)]"
+                          >
+                            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">#{idx + 1}</p>
+                            <p className="mt-1 text-sm font-semibold text-white">{item.alias}</p>
+                            <p className="text-xs text-amber-200">{item.score} pts</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {sessionDetail.questions?.map((q, idx) => {
+                      const ans = myAnswers.find((a) => a.questionIndex === idx);
+                      const isCorrect = ans && Number(ans.optionIndex) === Number(q.answerIndex);
+                      return (
+                        <div
+                          key={idx}
+                          className={`rounded-xl border p-3 text-sm ${
+                            isCorrect ? 'border-emerald-400/50 bg-emerald-500/10' : 'border-white/10 bg-white/5'
+                          }`}
+                        >
+                          <p className="text-[12px] uppercase tracking-[0.28em] text-white/60">ข้อ {idx + 1}</p>
+                          <p className="font-semibold text-white mt-1">{q.text}</p>
+                          <div className="mt-2 space-y-1 text-xs text-white/80">
+                            {q.options?.map((opt, optIdx) => {
+                              const isAns = ans && Number(ans.optionIndex) === optIdx;
+                              const isAnsCorrect = Number(q.answerIndex) === optIdx;
+                              return (
+                                <div
+                                  key={optIdx}
+                                  className={[
+                                    'flex items-center gap-2 rounded-lg border px-2 py-1',
+                                    isAnsCorrect ? 'border-emerald-400/50 bg-emerald-500/10' : 'border-white/10 bg-white/5',
+                                    isAns && !isAnsCorrect ? 'border-rose-400/40 bg-rose-500/10' : '',
+                                  ].join(' ')}
+                                >
+                                  <span className="h-6 w-6 rounded-lg bg-white/10 text-center text-[11px] leading-6 text-white">
+                                    {String.fromCharCode(65 + optIdx)}
+                                  </span>
+                                  <span className="flex-1">{opt}</span>
+                                  {isAns && <span className="text-[11px] text-amber-200">คำตอบคุณ</span>}
+                                  {isAnsCorrect && <span className="text-[11px] text-emerald-300">เฉลย</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {!ans && <p className="mt-2 text-[11px] text-white/60">ยังไม่ได้ส่งคำตอบในข้อนี้</p>}
+                          {ans && (
+                            <p className={`mt-2 text-[11px] ${isCorrect ? 'text-emerald-300' : 'text-rose-300'}`}>
+                              {isCorrect ? 'ตอบถูก!' : 'ตอบผิด'}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xs text-white/70">
+                    <p>
+                      คะแนนรวมคิดจาก {POINTS_PER_CORRECT} คะแนนต่อข้อถูก (แสดงเฉพาะคำตอบที่ส่งด้วยอุปกรณ์นี้)
+                    </p>
+                  </div>
+                </div>
+              ) : currentQuestion && sessionDetail?.status === 'running' ? (
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>

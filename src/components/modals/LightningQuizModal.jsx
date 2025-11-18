@@ -3,6 +3,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { db, appId, logActivity } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
+import AIQuizSetGeneratorModal from './AIQuizSetGeneratorModal';
 
 const quizSetsPath = `artifacts/${appId}/public/data/quiz_sets`;
 const quizSessionsPath = `artifacts/${appId}/public/data/quiz_sessions`;
@@ -42,6 +43,7 @@ const LightningQuizModal = ({ onClose }) => {
   const POINTS_PER_CORRECT = 10;
   const [questionDuration, setQuestionDuration] = React.useState(20);
   const [questionStats, setQuestionStats] = React.useState([]);
+  const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
   const [isStartingSession, setIsStartingSession] = React.useState(false);
   const [error, setError] = React.useState('');
   const [copySuccess, setCopySuccess] = React.useState(false);
@@ -394,12 +396,12 @@ const LightningQuizModal = ({ onClose }) => {
       .catch(() => setCopySuccess(false));
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="flex w-full max-w-6xl flex-col rounded-3xl border border-white/15 bg-[#0b1327]/95 text-white shadow-2xl max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+        <div
+          className="flex w-full max-w-6xl flex-col rounded-3xl border border-white/15 bg-[#0b1327]/95 text-white shadow-2xl max-h-[90vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
         <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-3">
             <Icon name="Bolt" size={26} className="text-purple-300" />
@@ -415,23 +417,36 @@ const LightningQuizModal = ({ onClose }) => {
 
         <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 overflow-y-auto p-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="flex min-h-0 flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Icon name="ArchiveRestore" size={18} className="text-purple-200" />
-                คลังชุดคำถาม
-              </h3>
-              <button
-                type="button"
-                onClick={() => setCreatingSet((prev) => !prev)}
-                className="flex items-center gap-2 rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/10"
-              >
-                <Icon name={creatingSet ? 'ChevronUp' : 'Plus'} size={16} />
-                {creatingSet ? 'ซ่อนแบบฟอร์ม' : 'สร้างชุดใหม่'}
-              </button>
-            </div>
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-lg font-semibold">
+                      <Icon name="ArchiveRestore" size={18} className="text-purple-200" />
+                      คลังชุดคำถาม
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setCreatingSet((prev) => !prev)}
+                      className="flex items-center gap-2 rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/10"
+                    >
+                      <Icon name={creatingSet ? 'ChevronUp' : 'Plus'} size={16} />
+                      {creatingSet ? 'ซ่อนแบบฟอร์ม' : 'สร้างชุดใหม่'}
+                    </button>
+                  </div>
 
             {creatingSet && (
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAiModalOpen(true)}
+                    className="flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
+                  >
+                    <Icon name="Sparkles" size={14} />
+                    ให้ AI สร้างชุดคำถาม
+                  </button>
+                  {selectedSet && (
+                    <span className="text-[11px] text-white/60">หรือกรอกเองด้านล่าง</span>
+                  )}
+                </div>
                 <div className="grid gap-3">
                   <div>
                     <label className="text-white/70">ชื่อชุด</label>
@@ -909,9 +924,27 @@ const LightningQuizModal = ({ onClose }) => {
             </div>
           </section>
         </div>
+        </div>
+
+        {isAiModalOpen && (
+          <AIQuizSetGeneratorModal
+            onClose={() => setIsAiModalOpen(false)}
+            onApply={(aiSet) => {
+              setSetForm({
+                title: aiSet.title,
+                topic: aiSet.topic,
+                instructions: aiSet.instructions,
+                questions: aiSet.questions,
+              });
+              setQuestionDraft(defaultQuestionDraft);
+              setCreatingSet(true);
+              setEditingSetId(null);
+              setIsAiModalOpen(false);
+            }}
+          />
+        )}
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 export default LightningQuizModal;
