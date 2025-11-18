@@ -390,38 +390,47 @@ const LightningQuizJoinView = () => {
             <div className="mt-6 rounded-2xl border border-white/10 bg-gradient-to-br from-[#111a34] via-[#0d1732] to-[#13254f] p-5 shadow-[0_20px_50px_-40px_rgba(0,0,0,0.8)]">
               {sessionDetail?.status === 'completed' ? (
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">Game Summary</p>
-                      <p className="text-lg font-semibold text-white">สรุปคะแนนของคุณ</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200">
-                        {myScore.points} pts • {myScore.correct}/{myScore.total} ข้อถูก
+                  <div className="relative overflow-hidden rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-400 via-pink-500 to-indigo-500 p-4 text-black shadow-[0_25px_55px_-35px_rgba(0,0,0,0.8)]">
+                    <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/30 blur-[60px]" />
+                    <div className="flex flex-wrap items-center justify-between gap-3 relative">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.35em] text-black/60">Game Summary</p>
+                        <p className="text-2xl font-extrabold">ยอดเยี่ยม! คะแนนรวม {myScore.points} pts</p>
+                        <p className="text-sm text-black/70">ตอบถูก {myScore.correct}/{myScore.total} ข้อ</p>
                       </div>
                       {scoreboard.length > 0 && (
-                        <div className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-200">
-                          อันดับคุณ: #
-                          {(() => {
-                            const idx = scoreboard.findIndex((s) => s.alias === alias);
-                            return idx >= 0 ? idx + 1 : '?';
-                          })()}
+                        <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-4 py-2 shadow-lg">
+                          <Icon name="Trophy" size={22} className="text-amber-500" />
+                          <div className="text-right">
+                            <p className="text-xs text-black/70">อันดับของคุณ</p>
+                            <p className="text-xl font-bold text-black">
+                              #
+                              {(() => {
+                                const idx = scoreboard.findIndex((s) => s.alias === alias);
+                                return idx >= 0 ? idx + 1 : '?';
+                              })()}
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {scoreboard.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/80">
-                      <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-2">Top 3</p>
-                      <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/80">
+                      <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-3">Top 3</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
                         {scoreboard.slice(0, 3).map((item, idx) => (
                           <div
                             key={item.alias + idx}
-                            className="rounded-lg border border-white/10 bg-black/20 p-3 text-center shadow-[0_12px_30px_-22px_rgba(0,0,0,0.8)]"
+                            className="rounded-xl border border-white/10 bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#0b1224] p-3 text-center shadow-[0_12px_30px_-22px_rgba(0,0,0,0.9)]"
                           >
-                            <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">#{idx + 1}</p>
-                            <p className="mt-1 text-sm font-semibold text-white">{item.alias}</p>
+                            <div className="flex justify-center">
+                              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-[12px] font-bold text-white">
+                                #{idx + 1}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm font-semibold text-white">{item.alias}</p>
                             <p className="text-xs text-amber-200">{item.score} pts</p>
                           </div>
                         ))}
