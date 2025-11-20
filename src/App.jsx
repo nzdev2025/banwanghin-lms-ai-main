@@ -1,17 +1,10 @@
 // The main application component renders different views based on
-// authentication state and wraps the UI in an error boundary.  It
-// subscribes to Firebase authentication and subject metadata
-// collections, shows a loading spinner while auth is loading,
-// presents a login form for unauthenticated users, and otherwise
-// displays the dashboard and modals for managing different pieces of
-// functionality.  This version includes minor refactoring to improve
-// readability and adds an ErrorBoundary around the entire tree to
-// gracefully handle runtime errors.
+// authentication state and wraps the UI in an error boundary.
+// It uses AppContext for global state management.
 
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { db, auth, onAuthStateChanged, handleLogout } from './firebase/firebase';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
+import { AppContextProvider, useApp } from './context/AppContext';
 
 // Layout
 import Header from './components/layout/Header';
@@ -19,18 +12,19 @@ import Sidebar from './components/layout/Sidebar';
 
 // Views
 import ErrorBoundary from './components/ErrorBoundary';
-import LoginView from './views/LoginView';
-import DashboardView from './views/DashboardView';
-import SubjectsView from './views/SubjectsView';
-import StudentsView from './views/StudentsView';
-import ToolsView from './views/ToolsView';
-import ClassroomToolsView from './views/ClassroomToolsView';
-import SettingsView from './views/SettingsView';
-import LightningQuizJoinView from './views/LightningQuizJoinView';
 import Icon from './icons/Icon';
 
+// Lazy Load Views
+const LoginView = lazy(() => import('./views/LoginView'));
+const DashboardView = lazy(() => import('./views/DashboardView'));
+const SubjectsView = lazy(() => import('./views/SubjectsView'));
+const StudentsView = lazy(() => import('./views/StudentsView'));
+const ToolsView = lazy(() => import('./views/ToolsView'));
+const ClassroomToolsView = lazy(() => import('./views/ClassroomToolsView'));
+const SettingsView = lazy(() => import('./views/SettingsView'));
+const LightningQuizJoinView = lazy(() => import('./views/LightningQuizJoinView'));
+
 // Modals
-import SubjectSelectionView from './components/modals/SubjectSelectionView';
 import GradeSelectionModal from './components/modals/GradeSelectionModal';
 import ClassDetailView from './components/modals/ClassDetailView';
 import SubjectManagementModal from './components/modals/SubjectManagementModal';
@@ -46,49 +40,37 @@ import HealthRecordModal from './components/modals/HealthRecordModal';
 import DevelopmentalAssessmentModal from './components/modals/DevelopmentalAssessmentModal';
 import Pp5GeneratorModal from './components/modals/Pp5GeneratorModal';
 import AILessonPlanGeneratorModal from './components/modals/AILessonPlanGeneratorModal';
+import ResetAssignmentsModal from './components/modals/ResetAssignmentsModal';
 
-function App() {
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [subjects, setSubjects] = useState([]);
-  const appId = 'banwanghin-lms-dev';
-  const [modalStack, setModalStack] = useState([]);
+// Loading Component
+const PageLoader = () => (
+  <div className="flex h-full w-full items-center justify-center">
+    <Icon name="Loader2" className="animate-spin text-teal-400" size={32} />
+  </div>
+);
+
+function AppContent() {
+  const {
+    user,
+    authLoading,
+    subjects,
+    modalStack,
+    openModal,
+    closeModal,
+    handleLogout
+  } = useApp();
+
   const location = useLocation();
   const isPublicQuizRoute = location.pathname.startsWith('/quiz');
 
-  // Subscribe to auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Listen to subjects metadata
-  useEffect(() => {
-    if (!user) return;
-    const subjectsMetaPath = `artifacts/${appId}/public/data/subjects_meta`;
-    const q = query(collection(db, subjectsMetaPath), orderBy('createdAt'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setSubjects(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsubscribe();
-  }, [appId, user]);
-
-  // Helpers to push/pop modals; using functional updates to avoid stale closures
-  const openModal = (type, data = null) => {
-    setModalStack((prev) => [...prev, { type, data }]);
-  };
-  const closeModal = () => {
-    setModalStack((prev) => prev.slice(0, prev.length - 1));
-  };
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
 
   if (isPublicQuizRoute) {
     return (
       <ErrorBoundary>
-        <LightningQuizJoinView />
+        <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-400" size={48} /></div>}>
+          <LightningQuizJoinView />
+        </Suspense>
       </ErrorBoundary>
     );
   }
@@ -101,7 +83,11 @@ function App() {
     );
   }
   if (!user) {
-    return <LoginView />;
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-400" size={48} /></div>}>
+        <LoginView />
+      </Suspense>
+    );
   }
 
   const AppLayout = () => {
@@ -109,14 +95,16 @@ function App() {
 
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-[#1b1f38] via-[#121629] to-[#0b1020] text-slate-100">
-        <Sidebar openModal={openModal} />
+        <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header user={user} handleLogout={handleLogout} />
           <main className="flex-1 overflow-hidden">
             <div className="mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-10">
               <div className="flex min-h-full flex-col gap-8">
                 <div className="flex-1 overflow-y-auto">
-                  <Outlet />
+                  <Suspense fallback={<PageLoader />}>
+                    <Outlet />
+                  </Suspense>
                 </div>
                 <footer className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-6 text-sm text-slate-300 backdrop-blur-lg sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -140,7 +128,7 @@ function App() {
     <ErrorBoundary>
       <Routes>
         <Route path="/" element={<AppLayout />}>
-          <Route index element={<DashboardView subjects={subjects} handleStudentClick={handleStudentClick} />} />
+          <Route index element={<DashboardView />} />
           <Route path="subjects" element={<SubjectsView subjects={subjects} openModal={openModal} />} />
           <Route path="students" element={<StudentsView openModal={openModal} />} />
           <Route path="tools" element={<ToolsView openModal={openModal} />} />
@@ -205,6 +193,8 @@ function App() {
             return <DevelopmentalAssessmentModal key={index} onClose={closeModal} />;
           case 'pp5Generator':
             return <Pp5GeneratorModal key={index} subjects={subjects} onClose={closeModal} />;
+          case 'resetAssignments':
+            return <ResetAssignmentsModal key={index} subjects={subjects} onClose={closeModal} />;
           default:
             return null;
         }
@@ -213,4 +203,13 @@ function App() {
   );
 }
 
+function App() {
+  return (
+    <AppContextProvider>
+      <AppContent />
+    </AppContextProvider>
+  );
+}
+
 export default App;
+

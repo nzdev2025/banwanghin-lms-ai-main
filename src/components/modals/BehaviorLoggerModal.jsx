@@ -23,6 +23,14 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
     const [isSaving, setIsSaving] = React.useState(false);
     // ++ NEW STATE: เก็บ tag ที่ถูกเลือก ++
     const [selectedTag, setSelectedTag] = React.useState(null);
+    const [selectedDate, setSelectedDate] = React.useState(() => {
+        const today = new Date();
+        return today.toISOString().split('T')[0];
+    });
+    const [selectedTime, setSelectedTime] = React.useState(() => {
+        const now = new Date();
+        return now.toTimeString().slice(0, 5);
+    });
 
     // ++ NEW FUNCTION: จัดการการเลือก tag ++
     const handleSelectTag = (type, tag) => {
@@ -38,12 +46,15 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
         setIsSaving(true);
         try {
             const logPath = `artifacts/${appId}/public/data/rosters/${grade}/students/${student.id}/behavior_logs`;
+            const composedDate = selectedDate
+                ? new Date(`${selectedDate}T${selectedTime || '00:00'}`)
+                : new Date();
             await addDoc(collection(db, logPath), {
                 type: selectedTag.type,
                 tag: selectedTag.tag.label,
                 icon: selectedTag.tag.icon,
                 note: note, // ส่ง note ไปด้วย
-                timestamp: serverTimestamp()
+                timestamp: composedDate
             });
             logActivity('BEHAVIOR_LOG', `บันทึกพฤติกรรม '${selectedTag.tag.label}' ของ ${student.firstName}`);
             onClose(); // Close modal on success
@@ -102,6 +113,27 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">บันทึกเพิ่มเติม (ถ้ามี)</label>
                         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows="3" className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white" placeholder="เช่น ช่วยเพื่อนสอนการบ้าน..."></textarea>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">วันที่เกิดเหตุ</label>
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                max={new Date().toISOString().split('T')[0]}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">เวลาประมาณ</label>
+                            <input
+                                type="time"
+                                value={selectedTime}
+                                onChange={(e) => setSelectedTime(e.target.value)}
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white"
+                            />
+                        </div>
                     </div>
                 </div>
                  <footer className="p-4 border-t border-white/10 flex justify-end gap-4">

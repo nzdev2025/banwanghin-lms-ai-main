@@ -2,39 +2,28 @@
 
 > ใช้อ่านก่อนเริ่มงานรอบถัดไป เพื่อรู้ว่าทำอะไรไปแล้วและคิวถัดไปคืออะไร
 
-อัปเดตล่าสุด: 20 Oct 2025
+อัปเดตล่าสุด: 20 Oct 2025 (runway ready)
 
 ---
 
 ## ✅ งานที่เสร็จ (Iteration ปัจจุบัน)
 
 ### Lightning Quiz (Beta)
-- ลบ Kahoot Hub เดิม และแทนที่ด้วย `Lightning Quiz` card ใน `ClassroomToolsView`.
-- สร้าง `LightningQuizModal.jsx` ที่ให้ครู:
-  - สร้าง/จัดการชุดคำถามแบบปรนัยในแอป (บันทึกลง `artifacts/<appId>/public/data/quiz_sets`).
-  - กดสร้าง PIN เพื่อเริ่ม session (`quiz_sessions`) พร้อม host console + scoreboard placeholder.
-  - เตรียมต่อยอดไปยัง student join/response (ยัง pending).
-- อัปเดต `App.jsx` ให้เปิด modal ใหม่นี้ (key: `lightningQuiz`).
-- เพิ่ม `LightningQuizJoinView` และปรับ `App.jsx` ให้ route `/quiz` ใช้งานได้โดยไม่ต้องล็อกอิน → นักเรียนสามารถใส่ PIN เพื่อเข้าร่วม (ยังเป็น placeholder).
-- เพิ่มปุ่ม copy join link ใน host console เพื่อแชร์ `/quiz`.
-- เพิ่มระบบถาม-ตอบพื้นฐาน: host “ถามคำถามถัดไป”, นักเรียนตอบได้ (ตอบครั้งเดียวต่อคำถาม), แสดงจำนวนผู้เข้าร่วม + live count คำตอบใน host console.
-- เพิ่ม CRUD ชุดคำถาม (สร้าง/แก้ไข/ลบ) บนมอดอลเดียวกัน.
-- ฝั่งนักเรียนบังคับตั้งชื่อเล่นหลังกรอก PIN, เก็บ participants และกันส่งซ้ำในคำถามเดียวกัน.
-- เพิ่ม live scoreboard (คำนวณคะแนน 10 คะแนนต่อคำตอบถูก) จากคำตอบทั้งหมดของ session.
-- Host มีชุดสรุปเบื้องต้น (ยอดผู้เข้าร่วม, จำนวนตอบรวม) และปุ่มส่งออก CSV สรุปคะแนน.
-- เพิ่มปุ่ม “เฉลยคำตอบ” ใน host; ฝั่งเด็กแสดง highlight “ถูก/ผิด” และปิดการส่งคำตอบเมื่อเฉลยแล้ว.
-- เพิ่มตัวจับเวลา 20s ต่อคำถาม (host/เด็กเห็นเวลานับถอยหลัง) และตั้งเวลาจบคำถามใน session.
-- เพิ่ม auto reveal (เฉลยอัตโนมัติเมื่อเวลาหมด) และเด็กจะถูกบล็อกส่งคำตอบเมื่อหมดเวลา.
-- ปรับ host กำหนดเวลาต่อคำถามได้ (10-120s) ก่อนเริ่ม session; questionEndsAt ถูกตั้งตามค่านี้.
-- เพิ่ม summary หลังจบเกมบน host (ต่อข้อมี breakdown คำตอบ + scoreboard) และ export CSV ได้.
-- Anti-spam เบื้องต้น: ยืนยันชื่อเล่นผูกกับ deviceId; ปฏิเสธ alias เดิมจากอุปกรณ์อื่น; ส่งคำตอบต้องมี participant ที่ deviceId ตรงกัน; ถ้า device เคยลงทะเบียน alias แล้วจะบังคับใช้อัตโนมัติ.
-- เพิ่มกราฟคะแนน (BarChart) ใน scoreboard (Top 5) หลังจบเกม/ระหว่างเล่น.
-- เพิ่ม AI Quiz Generator: ครูกำหนดหัวข้อ/คำสำคัญ/จำนวนข้อ/ตัวเลือก/ความยาก แล้ว AI สร้างชุดคำถามพร้อมเฉลยและเติมลงฟอร์มอัตโนมัติ.
+- CARD/ROUTING: เพิ่ม `Lightning Quiz` ใน ClassroomToolsView และ route `/quiz` สำหรับนักเรียน (ไม่ต้องล็อกอิน).
+- HOST FLOW: CRUD ชุดคำถาม (quiz_sets), สร้าง PIN/เริ่มเกม (quiz_sessions), ถามคำถามทีละข้อ, ตั้งเวลาต่อข้อ (10–120s), auto reveal เมื่อหมดเวลา, เฉลยด้วยปุ่ม, restart/จบเกม, export CSV.
+- ANALYTICS: live answer count, live scoreboard (10 pts/ถูก), กราฟคะแนน Top 5, breakdown คำตอบต่อข้อหลังจบเกม.
+- AI: AI Quiz Generator (ระบุวิชา/หัวข้อ/คำสำคัญ/จำนวนข้อ/ตัวเลือก/ความยาก) คืนชุดคำถามพร้อมเฉลยแล้วเติมฟอร์มอัตโนมัติ.
+- STUDENT FLOW: ใส่ PIN → ตั้ง alias (บังคับ) → ตอบคำถาม; มี timer, highlight เฉลย, ปิดส่งเมื่อเฉลย/หมดเวลา; Summary หลังจบเกมโชว์คะแนนรวม, อันดับตนเอง, Top 3, รายละเอียดต่อข้อ.
+- ANTI-SPAM: ผูก alias กับ deviceId, บังคับใช้ alias เดิมบนอุปกรณ์เดิม, ปฏิเสธ alias ซ้ำต่างเครื่อง, ส่งคำตอบตรวจ deviceId + กันส่งซ้ำต่อข้อ.
 
 ## 🎯 ฟีเจอร์ทั้งหมดที่วางแผน (Backlog & Next Steps)
 1) **Lightning Quiz**
-   - Core ที่มี: CRUD ชุดคำถาม, สร้าง PIN, เปิด/จบคำถามทีละข้อ, กันตอบซ้ำ, แสดงผู้ร่วม/ยอดคำตอบสด, เฉลยคำตอบ, scoreboard & export CSV, timer ต่อคำถาม (ตั้งค่าได้), auto reveal, summary breakdown หลังจบเกม, anti-spam alias+deviceId.
-   - ต่อไป: รีเซ็ต state ต่อคำถามอัตโนมัติ, สรุปผลหลังจบเกมแบบกราฟ/บันทึกกิจกรรม, ป้องกัน spam หลายอุปกรณ์ขั้นสูง (rate limit/ban), แสดงเฉลยถูก-ผิดย้อนหลัง/ประวัติผู้เล่น, ปรับเวลาต่อคำถามได้ทีละข้อ, auto-reveal พร้อมแสดง breakdown/เฉลยย้อนหลัง, soft reset ให้เด็กส่งคำตอบใหม่เมื่อคำถามถัดไปเริ่ม.
+   - Core ที่มี: CRUD ชุดคำถาม, สร้าง PIN, เปิด/จบคำถามทีละข้อ, กันตอบซ้ำ, แสดงผู้ร่วม/ยอดคำตอบสด, เฉลย+auto reveal, scoreboard & export CSV, timer ต่อคำถาม (ตั้งค่าได้), summary breakdown (host/เด็ก), AI สร้างคำถาม, anti-spam alias+deviceId.
+   - ต่อไป (ลำดับแนะนำ):
+     1. Reset state ต่อข้อแบบ server-side (clear flags/อนุญาตส่งใหม่เมื่อขึ้นข้อใหม่), ปรับเวลาต่อคำถามรายข้อ
+     2. Anti-spam ขั้นสูง: rate limit/ban per device, ตรวจ UA/IP (ถ้าต้องการ), ปิดการส่งเมื่อ trigger spam
+     3. Summary ขั้นสูง: กราฟรวมคะแนน/เวลาตอบเฉลี่ย, รายงาน PDF/ภาพ, log activity ต่อเกม/ผู้เล่น
+     4. UX เพิ่มเติม: ปุ่ม restart session จากชุดเดิม, เสียง/animation ตอนเฉลย/หมดเวลา
 2) **Behavior Timeline**
    - ปรับ `BehaviorLoggerModal` ให้เลือกวันที่ย้อนหลังได้ (มี default วันนี้).
    - ปรับ `StudentProfileModal` ให้แสดง timeline เรียงตามเวลา + filter ช่วงวันที่.
@@ -49,7 +38,7 @@
    - เพิ่มคำอธิบาย quick start ในแอป/tooltip เท่าที่จำเป็น.
 
 ## 📌 สถานะปัจจุบัน (20 Oct 2025)
-- Lightning Quiz: เล่นได้ระดับ Beta (host ถามคำถาม, timer ปรับได้, auto-reveal, breakdown หลังเกม, anti-spam alias+deviceId, scoreboard 10pts/ถูก, export CSV) — ยังไม่มี summary แบบกราฟ/บันทึกกิจกรรม และ anti-spam ขั้นสูง.
+- Lightning Quiz: Beta พร้อมใช้งาน (host ถามต่อข้อ, timer/auto-reveal, summary host/เด็ก, scoreboard + กราฟ, export, AI generator, anti-spam alias+deviceId) — ยังขาด summary กราฟรวม/เวลาตอบเฉลี่ย, rate limit/ban ขั้นสูง, reset state server-side ต่อข้อ, restart session, PDF/ภาพสรุป.
 - Behavior/Health/QR Passport: ยังไม่เริ่ม (อยู่ใน Backlog).
 - เอกสาร/README: ยังไม่อัปเดตสำหรับฟีเจอร์ใหม่.
 

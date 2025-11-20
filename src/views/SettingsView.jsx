@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserCog, BellRing, BookUp } from 'lucide-react';
+import { UserCog, BellRing, BookUp, Eraser } from 'lucide-react';
 
 const SettingsCard = ({ icon, title, description, onClick }) => (
   <div 
@@ -36,6 +36,12 @@ const SettingsView = ({ openModal }) => {
       title: 'ตั้งค่าวิชา',
       description: 'จัดการรายวิชาทั้งหมดที่เปิดสอน',
       action: () => openModal('manageSubjects'),
+    },
+    {
+      icon: <Eraser size={24} className="text-rose-400" />,
+      title: 'ล้างงานและคะแนน',
+      description: 'ล้างหัวข้องานและคะแนนทั้งชั้น/วิชาเมื่อขึ้นเทอมใหม่',
+      action: () => openModal('resetAssignments'),
     },
   ];
 

@@ -1,11 +1,23 @@
-// src/components/modals/StudentProfileModal.jsx (REVISED VERSION)
 import React from 'react';
-import { getDocs, collection, doc, onSnapshot, query, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
 import { callGeminiAPI } from '../../api/gemini';
 import Icon from '../../icons/Icon';
 import BehaviorLoggerModal from './BehaviorLoggerModal';
-import ConfirmationModal from './ConfirmationModal'; // ++ IMPORT: Modal ยืนยัน ++
+import ConfirmationModal from './ConfirmationModal';
+
+const calculateAge = (birthDateString) => {
+    if (!birthDateString) return { years: '-', months: '-', display: '-' };
+    const birthDate = new Date(birthDateString);
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+        years--;
+        months += 12;
+    }
+    return { years, months, display: `${years} ปี ${months} เดือน` };
+};
 
 const StudentProfileModal = ({ student, grade, subjects, onClose }) => {
     const [studentScores, setStudentScores] = React.useState(null);
@@ -17,83 +29,151 @@ const StudentProfileModal = ({ student, grade, subjects, onClose }) => {
     const [isCopied, setIsCopied] = React.useState(false);
     const [isLoggerOpen, setIsLoggerOpen] = React.useState(false);
     const [behaviorLogs, setBehaviorLogs] = React.useState([]);
-    // ++ NEW STATE: สำหรับจัดการ Modal ยืนยันการลบ ++
+    const [startDate, setStartDate] = React.useState('');
+    const [endDate, setEndDate] = React.useState('');
     const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, data: null });
 
+    // Health Data State
+    const [healthData, setHealthData] = React.useState({ weight: '', height: '' });
+    const [isEditingHealth, setIsEditingHealth] = React.useState(false);
+    const [isSavingHealth, setIsSavingHealth] = React.useState(false);
+
+    const today = new Date();
+    const currentYear = today.getFullYear() + 543;
+    // Simple term logic: May-Oct = Term 1, Nov-Apr = Term 2
+    const currentMonth = today.getMonth() + 1;
+    const currentTerm = (currentMonth >= 5 && currentMonth <= 10) ? 'term1' : 'term2';
+
+    // Live-sync scores and assignments so the profile always reflects the latest Firestore data
     React.useEffect(() => {
-        const fetchStudentData = async () => {
-            if (!db) return;
-            setIsLoading(true);
-            const scoresData = {};
-
-            for (const subject of subjects) {
-                const scoresPath = `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/scores`;
-                const assignmentsPath = `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/assignments`;
-
-                const [scoresSnap, assignmentsSnap] = await Promise.all([
-                    getDocs(collection(db, scoresPath)),
-                    getDocs(collection(db, assignmentsPath))
-                ]);
-
-                const studentScoresDoc = scoresSnap.docs.find(d => d.id === student.id);
-
-                if (studentScoresDoc) {
-                    const scores = studentScoresDoc.data();
-                    const assignments = assignmentsSnap.docs.map(d => ({id: d.id, ...d.data()}));
-
-                    scoresData[subject.name] = assignments.map(assign => ({
-                        name: assign.name,
-                        score: scores[assign.id] ?? 'N/A',
-                        maxScore: assign.maxScore
-                    }));
-                }
-            }
-            setStudentScores(scoresData);
+        if (!db || !subjects) return;
+        if (subjects.length === 0) {
+            setStudentScores({});
             setIsLoading(false);
+            return;
+        }
+
+        let isActive = true;
+        const unsubscribers = [];
+        setIsLoading(true);
+        setStudentScores({});
+
+        subjects.forEach((subject) => {
+            const scoresPath = `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/scores`;
+            const assignmentsPath = `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/assignments`;
+
+            let latestAssignments = [];
+            let latestScores = {};
+
+            const syncSubjectData = () => {
+                if (!isActive) return;
+                const normalizedAssignments = (latestAssignments || [])
+                    .filter((a) => a.createdAt && a.name)
+                    .map((assign) => ({
+                        name: assign.name,
+                        score: latestScores?.[assign.id], // undefined if not submitted
+                        maxScore: assign.maxScore,
+                        category: assign.category
+                    }));
+
+                setStudentScores((prev) => ({
+                    ...prev,
+                    [subject.id]: {
+                        name: subject.name,
+                        assignments: normalizedAssignments,
+                    }
+                }));
+                setIsLoading(false);
+            };
+
+            const assignmentsUnsub = onSnapshot(
+                query(collection(db, assignmentsPath), orderBy('createdAt')),
+                (snapshot) => {
+                    latestAssignments = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    syncSubjectData();
+                }
+            );
+
+            const scoresUnsub = onSnapshot(doc(db, `${scoresPath}/${student.id}`), (docSnap) => {
+                latestScores = docSnap.exists() ? docSnap.data() : {};
+                syncSubjectData();
+            });
+
+            unsubscribers.push(assignmentsUnsub, scoresUnsub);
+        });
+
+        const healthPath = `artifacts/${appId}/public/data/health_records/${grade}-${currentYear}-${currentTerm}/records/${student.id}`;
+        const healthUnsub = onSnapshot(doc(db, healthPath), (docSnap) => {
+            if (docSnap.exists()) {
+                setHealthData(docSnap.data());
+            } else {
+                setHealthData({ weight: '', height: '' });
+            }
+        });
+        unsubscribers.push(healthUnsub);
+
+        return () => {
+            isActive = false;
+            unsubscribers.forEach((unsub) => unsub && unsub());
         };
-        
+    }, [student.id, grade, subjects, currentYear, currentTerm]);
+
+    React.useEffect(() => {
+        if (!db) return;
         const logPath = `artifacts/${appId}/public/data/rosters/${grade}/students/${student.id}/behavior_logs`;
         const q = query(collection(db, logPath), orderBy("timestamp", "desc"));
         const unsubscribeLogs = onSnapshot(q, (snapshot) => {
             setBehaviorLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        fetchStudentData();
+        return () => unsubscribeLogs();
+    }, [student.id, grade]);
 
-        return () => {
-            unsubscribeLogs(); 
-        };
-    }, [student, grade, subjects]);
+    const handleSaveHealthData = async () => {
+        setIsSavingHealth(true);
+        try {
+            const healthPath = `artifacts/${appId}/public/data/health_records/${grade}-${currentYear}-${currentTerm}/records/${student.id}`;
+            await setDoc(doc(db, healthPath), {
+                weight: parseFloat(healthData.weight),
+                height: parseFloat(healthData.height),
+                lastUpdated: serverTimestamp()
+            }, { merge: true });
+            setIsEditingHealth(false);
+        } catch (error) {
+            console.error("Error saving health data:", error);
+            alert("บันทึกข้อมูลสุขภาพไม่สำเร็จ");
+        } finally {
+            setIsSavingHealth(false);
+        }
+    };
 
-    // ++ NEW FUNCTION: จัดการการลบบันทึกพฤติกรรม ++
     const handleDeleteBehaviorLog = async (logId) => {
         if (!logId) return;
         const logPath = `artifacts/${appId}/public/data/rosters/${grade}/students/${student.id}/behavior_logs`;
         try {
             await deleteDoc(doc(db, logPath, logId));
-            // ไม่ต้อง log activity การลบเพื่อความเรียบง่าย
         } catch (error) {
             console.error("Error deleting behavior log:", error);
             alert("เกิดข้อผิดพลาดในการลบ");
         }
     };
 
-
     const handleGenerateSummary = async () => {
         if (!studentScores) return;
         setIsGenerating(true);
         setAiSummary('');
         setParentComment('');
-        
+
         let behaviorDetails = "ไม่มีบันทึกพฤติกรรม";
         if (behaviorLogs.length > 0) {
             behaviorDetails = behaviorLogs.map(log => `- ${log.tag} (${log.type === 'positive' ? 'เชิงบวก' : 'ควรส่งเสริม'})`).join('\n');
         }
 
         let scoreDetails = "";
-        for (const subjectName in studentScores) {
-            const scoresText = studentScores[subjectName]
-                .map(s => `${s.name}: ${s.score}/${s.maxScore}`)
+        for (const subjectId in studentScores) {
+            const { name: subjectName, assignments } = studentScores[subjectId];
+            const scoresText = assignments
+                .map(s => `${s.name}: ${s.score !== undefined ? s.score : 'ขาดส่ง'}/${s.maxScore}`)
                 .join(', ');
             scoreDetails += `- วิชา${subjectName}: ${scoresText}\n`;
         }
@@ -151,132 +231,300 @@ const StudentProfileModal = ({ student, grade, subjects, onClose }) => {
     };
 
     const handleCopy = (text) => {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-            document.execCommand('copy');
+        navigator.clipboard.writeText(text).then(() => {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000);
-        } catch (err) {
-            console.error('Failed to copy text: ', err);
-        }
-        document.body.removeChild(textArea);
+        });
     };
 
+    const filteredBehaviorLogs = React.useMemo(() => {
+        const toJsDate = (value) => {
+            if (!value) return null;
+            if (value.toDate) return value.toDate();
+            if (value instanceof Date) return value;
+            return null;
+        };
+        const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
+        const end = endDate ? new Date(`${endDate}T23:59:59`) : null;
+        return [...behaviorLogs]
+            .filter((log) => {
+                const logDate = toJsDate(log.timestamp);
+                if (!logDate) return false;
+                if (start && logDate < start) return false;
+                if (end && logDate > end) return false;
+                return true;
+            })
+            .sort((a, b) => {
+                const aDate = toJsDate(a.timestamp)?.getTime() || 0;
+                const bDate = toJsDate(b.timestamp)?.getTime() || 0;
+                return bDate - aDate;
+            });
+    }, [behaviorLogs, startDate, endDate]);
+
     const formatDate = (timestamp) => {
-        if (!timestamp || !timestamp.toDate) return '...';
-        return timestamp.toDate().toLocaleString('th-TH', { dateStyle: 'medium' });
+        const dateValue = timestamp?.toDate ? timestamp.toDate() : timestamp instanceof Date ? timestamp : null;
+        if (!dateValue) return '...';
+        return dateValue.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
     };
+
+    const age = calculateAge(student.birthDate);
+
+    // Separate assignments
+    const submittedAssignments = [];
+    const missingAssignments = [];
+
+    if (studentScores) {
+        Object.values(studentScores).forEach(({ name: subjectName, assignments }) => {
+            assignments.forEach(assign => {
+                if (assign.score !== undefined && assign.score !== null && assign.score !== '') {
+                    submittedAssignments.push({ ...assign, subjectName });
+                } else {
+                    missingAssignments.push({ ...assign, subjectName });
+                }
+            });
+        });
+    }
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-                <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
-                    <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
-                        <div>
-                            <h2 className="text-2xl font-bold text-white">{student.firstName} {student.lastName}</h2>
-                            <p className="text-gray-400">ภาพรวมผลการเรียนและพฤติกรรม - ป.{grade.replace('p','')}</p>
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
+                <div className="bg-[#0f172a] border border-slate-700 rounded-3xl w-full max-w-7xl h-[95vh] flex flex-col shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+
+                    {/* Header */}
+                    <header className="bg-slate-900/50 p-6 border-b border-slate-700 flex items-center justify-between backdrop-blur-xl">
+                        <div className="flex items-center gap-6">
+                            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold shadow-lg ${student.gender === 'female' ? 'bg-gradient-to-br from-pink-500 to-rose-600' : 'bg-gradient-to-br from-blue-500 to-cyan-600'} text-white ring-4 ring-white/10`}>
+                                {student.studentNumber}
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-bold text-white mb-1">{student.firstName} {student.lastName}</h2>
+                                <div className="flex items-center gap-3 text-slate-400 text-sm">
+                                    <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-600">ชั้น ป.{grade.replace('p', '')}</span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-600">รหัส {student.studentId || '-'}</span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-600">{student.gender}</span>
+                                </div>
+                            </div>
                         </div>
-                         <button onClick={() => setIsLoggerOpen(true)} className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold py-2 px-3 rounded-lg transition-colors border border-amber-500/40">
-                            <Icon name="PlusCircle" size={16}/>
-                            <span>บันทึกพฤติกรรม</span>
-                        </button>
+                        <div className="flex gap-3">
+                            <button onClick={() => setIsLoggerOpen(true)} className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold py-2.5 px-4 rounded-xl transition-all border border-amber-500/30 hover:border-amber-500/50">
+                                <Icon name="PlusCircle" size={18} />
+                                <span>บันทึกพฤติกรรม</span>
+                            </button>
+                            <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                                <Icon name="X" size={24} />
+                            </button>
+                        </div>
                     </header>
-                    <div className="p-6 flex-grow overflow-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* --- Left Column --- */}
-                        <div className="space-y-6">
-                            {isLoading ? (
-                                <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-sky-400" size={40} /></div>
-                            ) : (
-                                <>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-white mb-3">บทวิเคราะห์โดย AI</h3>
-                                        <button onClick={handleGenerateSummary} disabled={isGenerating} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:opacity-90 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-wait">
-                                            {isGenerating ? <Icon name="Loader2" className="animate-spin" size={20}/> : <Icon name="Sparkles" size={20}/>}
-                                            {isGenerating ? 'กำลังวิเคราะห์...' : 'ให้ AI ช่วยวิเคราะห์ (รวมข้อมูลพฤติกรรม)'}
-                                        </button>
-                                        {aiSummary && (
-                                            <div className="mt-4 p-4 bg-gray-900/50 border border-gray-700 rounded-lg space-y-4">
-                                                <div>
-                                                    <h4 className="font-semibold text-gray-300 text-sm mb-2">สรุปสำหรับคุณครู:</h4>
-                                                    <p className="text-white whitespace-pre-wrap">{aiSummary}</p>
-                                                </div>
 
-                                                <button onClick={handleGenerateParentComment} disabled={isGeneratingParentComment || isGenerating} className="w-full flex items-center justify-center gap-2 bg-teal-500/80 hover:bg-teal-500 text-white font-bold py-2 px-3 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-wait">
-                                                    {isGeneratingParentComment ? <Icon name="Loader2" className="animate-spin" size={20}/> : <Icon name="ClipboardSignature" size={20}/>}
-                                                    {isGeneratingParentComment ? 'กำลังเรียบเรียง...' : 'สร้างคอมเมนต์สำหรับผู้ปกครอง'}
-                                                </button>
+                    <div className="flex-grow overflow-y-auto p-6 custom-scrollbar">
+                        <div className="grid grid-cols-12 gap-6">
 
-                                                {parentComment && (
-                                                    <div className="pt-4 border-t border-gray-700">
-                                                        <div className="flex justify-between items-center mb-2">
-                                                            <h4 className="font-semibold text-gray-300 text-sm">ข้อความสำหรับผู้ปกครอง:</h4>
-                                                            <button onClick={() => handleCopy(parentComment)} className="text-gray-400 hover:text-white">
-                                                                {isCopied ? <Icon name="Check" size={18} className="text-green-400"/> : <Icon name="Copy" size={18}/>}
-                                                            </button>
-                                                        </div>
-                                                        <p className="text-white whitespace-pre-wrap">{parentComment}</p>
-                                                    </div>
+                            {/* --- Column 1: Personal Info & Stats (3 cols) --- */}
+                            <div className="col-span-12 lg:col-span-3 space-y-6">
+                                {/* Personal Info Card */}
+                                <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-bold text-white flex items-center gap-2"><Icon name="User" size={20} className="text-teal-400" /> ข้อมูลส่วนตัว</h3>
+                                        {!isEditingHealth && (
+                                            <button onClick={() => setIsEditingHealth(true)} className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1">
+                                                <Icon name="Pencil" size={12} /> แก้ไข
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-slate-400 text-xs uppercase tracking-wider">วันเกิด</p>
+                                            <p className="text-white font-medium">{student.birthDate ? new Date(student.birthDate).toLocaleDateString('th-TH', { dateStyle: 'long' }) : '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-slate-400 text-xs uppercase tracking-wider">อายุ</p>
+                                            <p className="text-white font-medium">{age.display}</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+                                            <div>
+                                                <p className="text-slate-400 text-xs uppercase tracking-wider">น้ำหนัก (กก.)</p>
+                                                {isEditingHealth ? (
+                                                    <input
+                                                        type="number"
+                                                        value={healthData.weight}
+                                                        onChange={(e) => setHealthData({ ...healthData, weight: e.target.value })}
+                                                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm mt-1 focus:border-teal-500 outline-none"
+                                                    />
+                                                ) : (
+                                                    <p className="text-2xl font-bold text-teal-400">{healthData.weight || '-'}</p>
                                                 )}
+                                            </div>
+                                            <div>
+                                                <p className="text-slate-400 text-xs uppercase tracking-wider">ส่วนสูง (ซม.)</p>
+                                                {isEditingHealth ? (
+                                                    <input
+                                                        type="number"
+                                                        value={healthData.height}
+                                                        onChange={(e) => setHealthData({ ...healthData, height: e.target.value })}
+                                                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm mt-1 focus:border-teal-500 outline-none"
+                                                    />
+                                                ) : (
+                                                    <p className="text-2xl font-bold text-teal-400">{healthData.height || '-'}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {isEditingHealth && (
+                                            <div className="flex gap-2 mt-2">
+                                                <button onClick={handleSaveHealthData} disabled={isSavingHealth} className="flex-1 bg-teal-600 hover:bg-teal-500 text-white text-xs py-1.5 rounded transition-colors">
+                                                    {isSavingHealth ? 'บันทึก...' : 'บันทึก'}
+                                                </button>
+                                                <button onClick={() => setIsEditingHealth(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-1.5 rounded transition-colors">
+                                                    ยกเลิก
+                                                </button>
                                             </div>
                                         )}
                                     </div>
-                                    
-                                </>
-                            )}
-                        </div>
-                        {/* --- Right Column --- */}
-                        <div className="space-y-6">
-                            <div>
-                                <h3 className="text-lg font-bold text-white mb-3">บันทึกพฤติกรรมล่าสุด</h3>
-                                <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-2">
-                                    {behaviorLogs.length > 0 ? behaviorLogs.map(log => (
-                                        <div key={log.id} className={`group p-3 rounded-lg flex items-start gap-3 ${log.type === 'positive' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                                            <Icon name={log.icon} size={20} className={`mt-1 flex-shrink-0 ${log.type === 'positive' ? 'text-green-300' : 'text-red-300'}`}/>
-                                            <div className="flex-grow">
-                                                <p className="font-semibold text-white">{log.tag}</p>
-                                                {log.note && <p className="text-sm text-gray-400 italic">"{log.note}"</p>}
-                                                <p className="text-xs text-gray-500 mt-1">{formatDate(log.timestamp)}</p>
+                                </div>
+                            </div>
+
+                            {/* AI Analysis Card */}
+                            <div className="bg-gradient-to-b from-indigo-900/40 to-purple-900/40 rounded-2xl p-5 border border-indigo-500/30">
+                                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Icon name="Sparkles" size={20} className="text-purple-400" /> AI วิเคราะห์</h3>
+                                <button onClick={handleGenerateSummary} disabled={isGenerating} className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-indigo-900/50 mb-4 disabled:opacity-50 disabled:cursor-wait">
+                                    {isGenerating ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="BrainCircuit" size={18} />}
+                                    {isGenerating ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ผลการเรียน'}
+                                </button>
+
+                                {aiSummary && (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <div className="bg-slate-900/60 rounded-xl p-4 border border-indigo-500/20">
+                                            <p className="text-slate-200 text-sm leading-relaxed">{aiSummary}</p>
+                                        </div>
+                                        <button onClick={handleGenerateParentComment} disabled={isGeneratingParentComment} className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded-lg border border-slate-600 transition-colors flex items-center justify-center gap-2">
+                                            {isGeneratingParentComment ? <Icon name="Loader2" className="animate-spin" size={14} /> : <Icon name="MessageSquare" size={14} />}
+                                            สร้างข้อความถึงผู้ปกครอง
+                                        </button>
+                                        {parentComment && (
+                                            <div className="bg-slate-900/60 rounded-xl p-4 border border-teal-500/20 relative group">
+                                                <p className="text-teal-100 text-sm leading-relaxed italic">"{parentComment}"</p>
+                                                <button onClick={() => handleCopy(parentComment)} className="absolute top-2 right-2 p-1.5 bg-slate-800 text-slate-400 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {isCopied ? <Icon name="Check" size={14} /> : <Icon name="Copy" size={14} />}
+                                                </button>
                                             </div>
-                                            {/* ++ NEW: Delete Button ++ */}
-                                            <button 
-                                                onClick={() => setConfirmModal({ isOpen: true, data: { id: log.id, name: log.tag } })} 
-                                                className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
-                                            >
-                                                <Icon name="Trash2" size={16} />
-                                            </button>
-                                        </div>
-                                    )) : <p className="text-gray-500 text-center py-4">ยังไม่มีการบันทึกพฤติกรรม</p>}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white mb-3">คะแนนรายวิชา</h3>
-                                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                                    {studentScores && Object.keys(studentScores).length > 0 ? Object.entries(studentScores).map(([subjectName, scores]) => (
-                                        <div key={subjectName} className="bg-gray-700/30 p-4 rounded-lg">
-                                            <h4 className="font-bold text-teal-300 mb-2">{subjectName}</h4>
-                                            <ul className="text-sm text-gray-300 grid grid-cols-2 md:grid-cols-2 gap-x-4 gap-y-1">
-                                                {scores.map(s => (
-                                                    <li key={s.name} className="flex justify-between">
-                                                        <span>{s.name}:</span>
-                                                        <span className="font-mono">{s.score}/{s.maxScore}</span>
-                                                    </li>
+                        </div>
+
+                        {/* --- Column 2: Academic Performance (5 cols) --- */}
+                        <div className="col-span-12 lg:col-span-5 space-y-6">
+                            <div className="bg-slate-800/50 rounded-2xl border border-slate-700 flex flex-col h-full">
+                                <div className="p-5 border-b border-slate-700">
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2"><Icon name="GraduationCap" size={20} className="text-sky-400" /> ผลการเรียน</h3>
+                                </div>
+                                <div className="p-5 flex-grow overflow-y-auto max-h-[600px] custom-scrollbar">
+                                    {/* Missing Assignments Warning */}
+                                    {missingAssignments.length > 0 && (
+                                        <div className="mb-6">
+                                            <h4 className="text-red-400 font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                                                <Icon name="AlertCircle" size={16} /> งานที่ค้างส่ง ({missingAssignments.length})
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {missingAssignments.map((assign, idx) => (
+                                                    <div key={idx} className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex justify-between items-center">
+                                                        <div>
+                                                            <p className="text-red-200 font-medium text-sm">{assign.name}</p>
+                                                            <p className="text-red-400/60 text-xs">{assign.subjectName}</p>
+                                                        </div>
+                                                        <span className="text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded">-{assign.maxScore} คะแนน</span>
+                                                    </div>
                                                 ))}
-                                            </ul>
+                                            </div>
                                         </div>
-                                    )) : <p className="text-gray-500">ไม่มีข้อมูลคะแนน</p>}
+                                    )}
+
+                                    {/* Submitted Assignments */}
+                                    <div>
+                                        <h4 className="text-emerald-400 font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                                            <Icon name="CheckCircle2" size={16} /> งานที่ส่งแล้ว
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {submittedAssignments.length > 0 ? submittedAssignments.map((assign, idx) => (
+                                                <div key={idx} className="bg-slate-700/30 border border-slate-700 rounded-lg p-3 flex justify-between items-center hover:bg-slate-700/50 transition-colors">
+                                                    <div>
+                                                        <p className="text-slate-200 font-medium text-sm">{assign.name}</p>
+                                                        <p className="text-slate-500 text-xs">{assign.subjectName}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-emerald-500 rounded-full"
+                                                                style={{ width: `${(assign.score / assign.maxScore) * 100}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-sm font-bold text-emerald-400 min-w-[3rem] text-right">{assign.score}/{assign.maxScore}</span>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <p className="text-slate-500 text-center py-4 text-sm">ยังไม่มีงานที่ส่ง</p>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* --- Column 3: Behavior (4 cols) --- */}
+                        <div className="col-span-12 lg:col-span-4 space-y-6">
+                            <div className="bg-slate-800/50 rounded-2xl border border-slate-700 flex flex-col h-full">
+                                <div className="p-5 border-b border-slate-700 flex justify-between items-center">
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2"><Icon name="Activity" size={20} className="text-amber-400" /> พฤติกรรม</h3>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white w-28"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="p-5 flex-grow overflow-y-auto max-h-[600px] custom-scrollbar">
+                                    <div className="space-y-3">
+                                        {filteredBehaviorLogs.length > 0 ? filteredBehaviorLogs.map(log => (
+                                            <div key={log.id} className={`group p-3 rounded-xl border flex items-start gap-3 transition-all ${log.type === 'positive' ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10' : 'bg-rose-500/5 border-rose-500/20 hover:bg-rose-500/10'}`}>
+                                                <div className={`mt-1 p-1.5 rounded-lg ${log.type === 'positive' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                                    <Icon name={log.icon} size={16} />
+                                                </div>
+                                                <div className="flex-grow min-w-0">
+                                                    <div className="flex justify-between items-start">
+                                                        <p className={`font-bold text-sm ${log.type === 'positive' ? 'text-emerald-200' : 'text-rose-200'}`}>{log.tag}</p>
+                                                        <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">{formatDate(log.timestamp)}</span>
+                                                    </div>
+                                                    {log.note && <p className="text-xs text-slate-400 mt-1 line-clamp-2">"{log.note}"</p>}
+                                                </div>
+                                                <button
+                                                    onClick={() => setConfirmModal({ isOpen: true, data: { id: log.id, name: log.tag } })}
+                                                    className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition-all p-1"
+                                                >
+                                                    <Icon name="Trash2" size={14} />
+                                                </button>
+                                            </div>
+                                        )) : (
+                                            <div className="text-center py-10">
+                                                <div className="bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                    <Icon name="ClipboardList" size={32} className="text-slate-600" />
+                                                </div>
+                                                <p className="text-slate-500 text-sm">ไม่พบบันทึกพฤติกรรม</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
+
             {isLoggerOpen && <BehaviorLoggerModal student={student} grade={grade} onClose={() => setIsLoggerOpen(false)} />}
-            {/* ++ NEW: Render Confirmation Modal ++ */}
             {confirmModal.isOpen && (
-                <ConfirmationModal 
+                <ConfirmationModal
                     item={confirmModal.data}
                     onClose={() => setConfirmModal({ isOpen: false, data: null })}
                     onConfirm={() => handleDeleteBehaviorLog(confirmModal.data.id)}

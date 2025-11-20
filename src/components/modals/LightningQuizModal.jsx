@@ -15,6 +15,7 @@ const defaultQuestionDraft = {
   optionC: '',
   optionD: '',
   answerIndex: '0',
+  duration: 20,
 };
 
 const LightningQuizModal = ({ onClose }) => {
@@ -67,6 +68,12 @@ const LightningQuizModal = ({ onClose }) => {
 
   const selectedSet = React.useMemo(() => quizSets.find((set) => set.id === selectedSetId), [quizSets, selectedSetId]);
 
+  React.useEffect(() => {
+    if (!selectedSet) return;
+    const firstDuration = selectedSet.questions?.[0]?.duration || 20;
+    setQuestionDuration(firstDuration);
+  }, [selectedSet]);
+
   // Subscribe session doc and answers of current question when hosting
   // Subscribe session & participants
   React.useEffect(() => {
@@ -107,9 +114,13 @@ const LightningQuizModal = ({ onClose }) => {
     const unsubAnswersAll = onSnapshot(answersAllRef, (snap) => {
       const scores = {};
       const stats = (sessionDoc.questions || []).map(() => ({}));
+      const tokens = sessionDoc.questionTokens || [];
       snap.docs.forEach((docSnap) => {
         const data = docSnap.data();
         const qIndex = data.questionIndex;
+        if (qIndex === null || qIndex === undefined) return;
+        const tokenForQuestion = tokens[qIndex];
+        if (tokenForQuestion && data.questionToken !== tokenForQuestion) return;
         const alias = data.alias || 'ไม่ระบุ';
         const optionIndex = data.optionIndex;
         const question = sessionDoc.questions?.[qIndex];
@@ -170,10 +181,12 @@ const LightningQuizModal = ({ onClose }) => {
     }
     const answersRef = collection(db, `${quizSessionsPath}/${activeSession.id}/answers`);
     const answersQuery = query(answersRef, where('questionIndex', '==', sessionDoc.currentQuestionIndex));
+    const tokenForQuestion = (sessionDoc.questionTokens || [])[sessionDoc.currentQuestionIndex];
     const unsub = onSnapshot(answersQuery, (snapshot) => {
       const counts = {};
       snapshot.docs.forEach((docSnap) => {
         const optionIndex = docSnap.data().optionIndex;
+        if (tokenForQuestion && docSnap.data().questionToken !== tokenForQuestion) return;
         counts[optionIndex] = (counts[optionIndex] || 0) + 1;
       });
       setAnswerCounts(
@@ -192,6 +205,11 @@ const LightningQuizModal = ({ onClose }) => {
 
   const handleChangeDraft = (e) => {
     const { name, value } = e.target;
+    if (name === 'duration') {
+      const next = Math.max(10, Math.min(120, Number(value || 20)));
+      setQuestionDraft((prev) => ({ ...prev, duration: next }));
+      return;
+    }
     setQuestionDraft((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -201,10 +219,12 @@ const LightningQuizModal = ({ onClose }) => {
       .map((opt) => opt.trim())
       .filter(Boolean);
     if (options.length < 2) return;
+    const duration = Math.max(10, Math.min(120, Number(questionDraft.duration || 20)));
     const newQuestion = {
       text: questionDraft.text.trim(),
       options,
       answerIndex: Math.min(Number(questionDraft.answerIndex || 0), options.length - 1),
+      duration,
     };
     setSetForm((prev) => ({ ...prev, questions: [...prev.questions, newQuestion] }));
     setQuestionDraft(defaultQuestionDraft);
@@ -275,16 +295,22 @@ const LightningQuizModal = ({ onClose }) => {
     setError('');
     const code = generateSessionCode();
     try {
+      const normalizedQuestions = (selectedSet.questions || []).map((q) => ({
+        ...q,
+        duration: q.duration || questionDuration || 20,
+      }));
       const docRef = await addDoc(collection(db, quizSessionsPath), {
         quizSetId: selectedSet.id,
         quizTitle: selectedSet.title,
-        questions: selectedSet.questions || [],
+        questions: normalizedQuestions,
         sessionCode: code,
         questionCount: selectedSet.questions?.length || 0,
         status: 'waiting',
         currentQuestionIndex: null,
+        questionTokens: new Array(normalizedQuestions.length).fill(null),
         startedAt: serverTimestamp(),
       });
+      setQuestionDuration(normalizedQuestions[0]?.duration || questionDuration || 20);
       setActiveSession({
         id: docRef.id,
         sessionCode: code,
@@ -320,13 +346,24 @@ const LightningQuizModal = ({ onClose }) => {
       logActivity('QUIZ_SESSION_END', `จบเกม PIN ${activeSession.sessionCode}`);
       return;
     }
+    const durationForQuestion =
+      sessionDoc.questions?.[nextIndex]?.duration || questionDuration || 20;
+    const questionTokens = [...(sessionDoc.questionTokens || new Array(sessionDoc.questions.length).fill(null))];
+    if (questionTokens.length < sessionDoc.questions.length) {
+      questionTokens.length = sessionDoc.questions.length;
+    }
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    questionTokens[nextIndex] = token;
+    setQuestionDuration(durationForQuestion);
+
     await updateDoc(doc(db, quizSessionsPath, activeSession.id), {
       status: 'running',
       currentQuestionIndex: nextIndex,
       questionStartedAt: serverTimestamp(),
       revealAnswer: false,
-      questionEndsAt: new Date(Date.now() + questionDuration * 1000),
-      questionDuration,
+      questionEndsAt: new Date(Date.now() + durationForQuestion * 1000),
+      questionDuration: durationForQuestion,
+      questionTokens,
     });
     logActivity('QUIZ_QUESTION_START', `เริ่มข้อที่ ${nextIndex + 1} ใน PIN ${activeSession.sessionCode}`);
   };
@@ -517,6 +554,18 @@ const LightningQuizModal = ({ onClose }) => {
                         className="w-20 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
                       />
                     </label>
+                    <label className="flex items-center gap-2 text-white/70">
+                      เวลา/ข้อ (วินาที)
+                      <input
+                        type="number"
+                        min="10"
+                        max="120"
+                        name="duration"
+                        value={questionDraft.duration}
+                        onChange={handleChangeDraft}
+                        className="w-24 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={handleAddQuestion}
@@ -605,7 +654,7 @@ const LightningQuizModal = ({ onClose }) => {
                                   title: set.title || '',
                                   topic: set.topic || '',
                                   instructions: set.instructions || '',
-                                  questions: set.questions || [],
+                                  questions: (set.questions || []).map((q) => ({ ...q, duration: q.duration || 20 })),
                                 });
                                 setQuestionDraft(defaultQuestionDraft);
                               }}

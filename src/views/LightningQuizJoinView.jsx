@@ -1,5 +1,5 @@
 import React from 'react';
-import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db, appId } from '../firebase/firebase';
 import Icon from '../icons/Icon';
 
@@ -19,9 +19,12 @@ const LightningQuizJoinView = () => {
   const [timeLeft, setTimeLeft] = React.useState(null);
   const [participantDocId, setParticipantDocId] = React.useState(null);
   const prevQuestionIndexRef = React.useRef(null);
+  const prevTokenRef = React.useRef(null);
+  const lastSubmitAtRef = React.useRef(0);
   const [myAnswers, setMyAnswers] = React.useState([]);
   const POINTS_PER_CORRECT = 10;
   const [scoreboard, setScoreboard] = React.useState([]);
+  const [participantStatus, setParticipantStatus] = React.useState(null);
 
   const deviceId = React.useMemo(() => {
     if (typeof localStorage === 'undefined') return 'device-' + Math.random().toString(36).slice(2);
@@ -72,6 +75,7 @@ const LightningQuizJoinView = () => {
     setAlias('');
     setAliasSubmitted(false);
     setParticipantDocId(null);
+    setParticipantStatus(null);
     setSelectedOption(null);
     setSubmittedForQuestion(null);
   };
@@ -106,15 +110,17 @@ const LightningQuizJoinView = () => {
       ? sessionDetail.questions[sessionDetail.currentQuestionIndex]
       : null;
 
-  // รีเซ็ตสถานะเมื่อมีการเปลี่ยนคำถาม
+  // รีเซ็ตสถานะเมื่อมีการเปลี่ยนคำถามหรือรีเซ็ตคำถามเดิม (token ใหม่)
   React.useEffect(() => {
     const idx = sessionDetail?.currentQuestionIndex;
     if (idx === null || idx === undefined) return;
-    if (prevQuestionIndexRef.current === idx) return;
+    const token = sessionDetail?.questionTokens?.[idx] || null;
+    if (prevQuestionIndexRef.current === idx && prevTokenRef.current === token) return;
     prevQuestionIndexRef.current = idx;
+    prevTokenRef.current = token;
     setSelectedOption(null);
     setSubmittedForQuestion(null);
-  }, [sessionDetail?.currentQuestionIndex]);
+  }, [sessionDetail?.currentQuestionIndex, sessionDetail?.questionTokens]);
 
   // Countdown timer for student side
   React.useEffect(() => {
@@ -154,6 +160,8 @@ const LightningQuizJoinView = () => {
         snap.docs.forEach((docSnap) => {
           const data = docSnap.data();
           if (data.questionIndex !== idx) return;
+          const tokenForQuestion = sessionDetail.questionTokens?.[idx];
+          if (tokenForQuestion && data.questionToken !== tokenForQuestion) return;
           const alias = data.alias || 'ไม่ระบุ';
           const optionIndex = data.optionIndex;
           const isCorrect = Number(optionIndex) === Number(q.answerIndex);
@@ -171,12 +179,26 @@ const LightningQuizJoinView = () => {
     return () => unsub();
   }, [db, sessionDetail?.id, sessionDetail?.questions]);
 
+  React.useEffect(() => {
+    if (!db || !sessionDetail?.id || !participantDocId) return undefined;
+    const participantRef = doc(db, `${quizSessionsPath}/${sessionDetail.id}/participants/${participantDocId}`);
+    const unsub = onSnapshot(participantRef, (snap) => {
+      if (snap.exists()) {
+        setParticipantStatus({ id: snap.id, ...snap.data() });
+      }
+    });
+    return () => unsub();
+  }, [db, sessionDetail?.id, participantDocId]);
+
   const myScore = React.useMemo(() => {
     if (!sessionDetail?.questions) return { correct: 0, total: 0, points: 0 };
     const total = sessionDetail.questions.length;
     let correct = 0;
     sessionDetail.questions.forEach((q, idx) => {
-      const ans = myAnswers.find((a) => a.questionIndex === idx);
+      const tokenForQuestion = sessionDetail.questionTokens?.[idx];
+      const ans = myAnswers.find(
+        (a) => a.questionIndex === idx && (!tokenForQuestion || a.questionToken === tokenForQuestion),
+      );
       if (ans && Number(ans.optionIndex) === Number(q.answerIndex)) correct += 1;
     });
     return { correct, total, points: correct * POINTS_PER_CORRECT };
@@ -240,9 +262,20 @@ const LightningQuizJoinView = () => {
       sessionDetail.currentQuestionIndex === null ||
       selectedOption === null ||
       !alias.trim() ||
-      timeLeft === 0
+      timeLeft === 0 ||
+      sessionDetail.revealAnswer
     )
       return;
+    if (participantStatus?.banned) {
+      setError('อุปกรณ์นี้ถูกปิดรับคำตอบในเกมนี้');
+      return;
+    }
+    const now = Date.now();
+    if (now - lastSubmitAtRef.current < 800) {
+      setError('ส่งถี่เกินไป กรุณารอสักครู่');
+      return;
+    }
+    lastSubmitAtRef.current = now;
     setIsSubmitting(true);
     setError('');
     try {
@@ -258,10 +291,17 @@ const LightningQuizJoinView = () => {
 
       // ป้องกันส่งซ้ำคำถามเดียวกันด้วย alias เดิม
       const answersRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/answers`);
-      const dupQuery = query(
-        answersRef,
+      const tokenForQuestion = sessionDetail.questionTokens?.[sessionDetail.currentQuestionIndex] || null;
+      const dupFilters = [
         where('questionIndex', '==', sessionDetail.currentQuestionIndex),
         where('deviceId', '==', deviceId),
+      ];
+      if (tokenForQuestion) {
+        dupFilters.push(where('questionToken', '==', tokenForQuestion));
+      }
+      const dupQuery = query(
+        answersRef,
+        ...dupFilters,
         limit(1),
       );
       const dupSnap = await getDocs(dupQuery);
@@ -276,8 +316,14 @@ const LightningQuizJoinView = () => {
         deviceId,
         optionIndex: selectedOption,
         questionIndex: sessionDetail.currentQuestionIndex,
+        questionToken: tokenForQuestion,
         submittedAt: new Date(),
       });
+      if (participantDocId) {
+        await updateDoc(doc(participantsRef, participantDocId), {
+          lastAnswerAt: new Date(),
+        });
+      }
       setSubmittedForQuestion(sessionDetail.currentQuestionIndex);
     } catch (err) {
       console.error('submit answer failed', err);

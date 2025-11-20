@@ -1,19 +1,19 @@
 // src/api/gemini.js
 import { GoogleGenAI } from "@google/genai";
+import { config } from "../config";
 
 export const callGeminiAPI = async (prompt) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = config.gemini.apiKey;
     if (!apiKey) {
-        console.error("VITE_GEMINI_API_KEY is not set in .env file.");
+        console.error("Gemini API Key is not configured.");
         throw new Error("API Key is not configured.");
     }
 
     try {
         const genAI = new GoogleGenAI({ apiKey });
-        
-        // Use the exact pattern from the user's markdown file
+
         const result = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: config.gemini.model,
             contents: prompt,
         });
 
@@ -22,6 +22,13 @@ export const callGeminiAPI = async (prompt) => {
 
     } catch (error) {
         console.error("Error calling Gemini API:", error);
-        throw new Error(`API Error: ${error.message}`);
+        // Enhance error message if possible
+        let errorMessage = error.message;
+        if (error.message.includes('401')) {
+            errorMessage = 'Invalid API Key or unauthorized access.';
+        } else if (error.message.includes('429')) {
+            errorMessage = 'Rate limit exceeded. Please try again later.';
+        }
+        throw new Error(`API Error: ${errorMessage}`);
     }
 };
