@@ -41,6 +41,7 @@ import DevelopmentalAssessmentModal from './components/modals/DevelopmentalAsses
 import Pp5GeneratorModal from './components/modals/Pp5GeneratorModal';
 import AILessonPlanGeneratorModal from './components/modals/AILessonPlanGeneratorModal';
 import ResetAssignmentsModal from './components/modals/ResetAssignmentsModal';
+import StudentProgressModal from './components/modals/StudentProgressModal';
 
 // Loading Component
 const PageLoader = () => (
@@ -174,6 +175,17 @@ function AppContent() {
                 student={modal.data.student}
                 grade={modal.data.grade}
                 subjects={subjects}
+                openModal={openModal}
+                onClose={closeModal}
+              />
+            );
+          case 'studentProgress':
+            return (
+              <StudentProgressModal
+                key={index}
+                student={modal.data.student}
+                grade={modal.data.grade}
+                subjects={subjects}
                 onClose={closeModal}
               />
             );
@@ -212,4 +224,3 @@ function App() {
 }
 
 export default App;
-

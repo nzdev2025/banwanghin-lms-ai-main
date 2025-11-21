@@ -19,7 +19,7 @@ const calculateAge = (birthDateString) => {
   return { years, months, display: `${years} ปี ${months} เดือน` };
 };
 
-const StudentProfileModal = ({ student, grade, subjects, onClose }) => {
+const StudentProfileModal = ({ student, grade, subjects, onClose, openModal }) => {
   const [studentScores, setStudentScores] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [aiSummary, setAiSummary] = React.useState('');
@@ -322,6 +322,15 @@ const StudentProfileModal = ({ student, grade, subjects, onClose }) => {
               </div>
             </div>
             <div className="flex gap-3 flex-wrap">
+              {openModal && (
+                <button
+                  onClick={() => openModal('studentProgress', { student, grade })}
+                  className="flex items-center gap-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 font-bold py-2.5 px-4 rounded-xl transition-all border border-sky-500/30 hover:border-sky-500/50"
+                >
+                  <Icon name="LineChart" size={18} />
+                  <span>ดูความคืบหน้า</span>
+                </button>
+              )}
               <button onClick={() => setIsLoggerOpen(true)} className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold py-2.5 px-4 rounded-xl transition-all border border-amber-500/30 hover:border-amber-500/50">
                 <Icon name="PlusCircle" size={18} />
                 <span>บันทึกพฤติกรรม</span>
