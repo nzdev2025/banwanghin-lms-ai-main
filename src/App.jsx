@@ -23,6 +23,7 @@ const ToolsView = lazy(() => import('./views/ToolsView'));
 const ClassroomToolsView = lazy(() => import('./views/ClassroomToolsView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const LightningQuizJoinView = lazy(() => import('./views/LightningQuizJoinView'));
+const CalendarView = lazy(() => import('./views/CalendarView'));
 
 // Modals
 import GradeSelectionModal from './components/modals/GradeSelectionModal';
@@ -131,6 +132,7 @@ function AppContent() {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<DashboardView />} />
           <Route path="subjects" element={<SubjectsView subjects={subjects} openModal={openModal} />} />
+          <Route path="calendar" element={<CalendarView subjects={subjects} />} />
           <Route path="students" element={<StudentsView openModal={openModal} />} />
           <Route path="tools" element={<ToolsView openModal={openModal} />} />
           <Route path="classroom-tools" element={<ClassroomToolsView openModal={openModal} />} />

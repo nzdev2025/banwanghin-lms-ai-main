@@ -8,6 +8,7 @@ const AssignmentModal = ({ onClose, onSave, initialData = null }) => {
         name: initialData?.name || '',
         maxScore: initialData?.maxScore || 10,
         category: initialData?.category || 'quiz',
+        dueDate: initialData?.dueDate ? new Date(initialData.dueDate.toDate ? initialData.dueDate.toDate() : initialData.dueDate).toISOString().slice(0, 10) : '',
     });
     const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
 
@@ -65,6 +66,17 @@ const AssignmentModal = ({ onClose, onSave, initialData = null }) => {
                                     ))}
                                 </select>
                             </div>
+                        </div>
+                        <div className="mb-6">
+                            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-300 mb-1">กำหนดส่ง (ถ้ามี)</label>
+                            <input
+                                type="date"
+                                id="dueDate"
+                                name="dueDate"
+                                value={formData.dueDate}
+                                onChange={handleChange}
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white"
+                            />
                         </div>
                         <div className="flex justify-end gap-4 mt-8">
                             <button type="button" onClick={onClose} className="py-2 px-4 text-gray-300 hover:text-white">ยกเลิก</button>

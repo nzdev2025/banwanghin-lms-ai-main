@@ -4,6 +4,7 @@ import {
   House,
   Book,
   Users,
+  Calendar,
   FilePlus,
   Briefcase,
   Settings,
@@ -15,6 +16,7 @@ const Sidebar = () => {
   const navItems = [
     { icon: House, name: 'แดชบอร์ด', path: '/' },
     { icon: Book, name: 'รายวิชา', path: '/subjects' },
+    { icon: Calendar, name: 'ปฏิทินงาน/สอบ', path: '/calendar' },
     { icon: Users, name: 'นักเรียน', path: '/students' },
     { icon: FilePlus, name: 'AI ช่วยสร้าง', path: '/tools' },
     { icon: Briefcase, name: 'เครื่องมือช่วยสอน', path: '/classroom-tools' },

@@ -84,12 +84,14 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                 const docRef = doc(db, `${subjectBasePath}/assignments`, data.id);
                 // eslint-disable-next-line no-unused-vars
                 const { id, ...dataToUpdate } = data;
-                await setDoc(docRef, dataToUpdate, { merge: true });
+                const dueDateValue = dataToUpdate.dueDate ? new Date(dataToUpdate.dueDate) : null;
+                await setDoc(docRef, { ...dataToUpdate, dueDate: dueDateValue }, { merge: true });
                 logActivity('ASSIGNMENT_UPDATE', `แก้ไขงาน <strong>"${data.name}"</strong> ในวิชา <strong>${subject.name}</strong>`);
             } else {
                 // eslint-disable-next-line no-unused-vars
                 const { id, ...dataToAdd } = data;
-                await addDoc(collection(db, `${subjectBasePath}/assignments`), { ...dataToAdd, createdAt: serverTimestamp() });
+                const dueDateValue = dataToAdd.dueDate ? new Date(dataToAdd.dueDate) : null;
+                await addDoc(collection(db, `${subjectBasePath}/assignments`), { ...dataToAdd, dueDate: dueDateValue, createdAt: serverTimestamp() });
                 logActivity('ASSIGNMENT_CREATE', `เพิ่มงานใหม่ <strong>"${data.name}"</strong> ในวิชา <strong>${subject.name}</strong>`);
             }
             setModal({ type: null, data: null });
