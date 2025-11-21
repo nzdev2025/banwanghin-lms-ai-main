@@ -24,6 +24,7 @@ const ClassroomToolsView = lazy(() => import('./views/ClassroomToolsView'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 const LightningQuizJoinView = lazy(() => import('./views/LightningQuizJoinView'));
 const CalendarView = lazy(() => import('./views/CalendarView'));
+const AttendanceJoinView = lazy(() => import('./views/AttendanceJoinView'));
 
 // Modals
 import GradeSelectionModal from './components/modals/GradeSelectionModal';
@@ -64,6 +65,7 @@ function AppContent() {
 
   const location = useLocation();
   const isPublicQuizRoute = location.pathname.startsWith('/quiz');
+  const isPublicAttendanceJoinRoute = location.pathname.startsWith('/attendance/join');
 
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
 
@@ -72,6 +74,16 @@ function AppContent() {
       <ErrorBoundary>
         <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-400" size={48} /></div>}>
           <LightningQuizJoinView />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  if (isPublicAttendanceJoinRoute) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-400" size={48} /></div>}>
+          <AttendanceJoinView />
         </Suspense>
       </ErrorBoundary>
     );
@@ -138,6 +150,7 @@ function AppContent() {
           <Route path="classroom-tools" element={<ClassroomToolsView openModal={openModal} />} />
           <Route path="settings" element={<SettingsView openModal={openModal} />} />
         </Route>
+        <Route path="/attendance/join/:grade/:date/:token" element={<AttendanceJoinView />} />
       </Routes>
 
       {modalStack.map((modal, index) => {
