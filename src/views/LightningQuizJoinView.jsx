@@ -2,6 +2,7 @@ import React from 'react';
 import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db, appId } from '../firebase/firebase';
 import Icon from '../icons/Icon';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 const quizSessionsPath = `artifacts/${appId}/public/data/quiz_sessions`;
 

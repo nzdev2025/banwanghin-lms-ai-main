@@ -1,5 +1,18 @@
 import React from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  CartesianGrid,
+} from 'recharts';
 import { fetchAcademicTrend, fetchBehaviorStats, fetchHealthSeries, fetchAttendanceStats } from '../../api/studentProgress';
 import Icon from '../../icons/Icon';
 import { colorThemes } from '../../constants/theme';
@@ -11,7 +24,25 @@ const toJsDate = (value) => {
   return null;
 };
 
-const emptyStats = { มาเรียน: 0, ขาด: 0, ลา: 0, สาย: 0 };
+const bmi = (weight, height) => {
+  if (!weight || !height) return null;
+  const h = height / 100;
+  return weight / (h * h);
+};
+
+const trendFromDelta = (delta) => {
+  if (delta === null || Number.isNaN(delta)) return 'flat';
+  if (delta > 5) return 'up';
+  if (delta < -5) return 'down';
+  return 'flat';
+};
+
+const trendCopy = {
+  up: { text: 'ดีขึ้น', color: 'text-emerald-300', bg: 'bg-emerald-500/10' },
+  flat: { text: 'ทรงตัว', color: 'text-slate-200', bg: 'bg-slate-500/10' },
+  down: { text: 'แย่ลง', color: 'text-rose-300', bg: 'bg-rose-500/10' },
+};
+
 const attendanceColors = {
   มาเรียน: '#22c55e',
   ขาด: '#f43f5e',
@@ -19,35 +50,49 @@ const attendanceColors = {
   สาย: '#38bdf8',
 };
 
+const rangeOptions = [
+  { key: '7', label: '7 วัน' },
+  { key: '30', label: '30 วัน' },
+  { key: '120', label: 'เทอม (120 วัน)' },
+];
+
+const formatDeltaText = (delta, unit = '%') => {
+  if (delta === null || Number.isNaN(delta)) return '—';
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${delta.toFixed(1)}${unit}`;
+};
+
 const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
   const [loading, setLoading] = React.useState(true);
   const [academic, setAcademic] = React.useState([]);
   const [behavior, setBehavior] = React.useState({ positive: 0, needsAttention: 0, logs: [] });
   const [health, setHealth] = React.useState([]);
-  const [attendance, setAttendance] = React.useState({ stats: emptyStats, absentDays: [] });
+  const [attendance, setAttendance] = React.useState({ stats: { มาเรียน: 0, ขาด: 0, ลา: 0, สาย: 0 }, absentDays: [] });
   const [error, setError] = React.useState('');
   const [aiSummary, setAiSummary] = React.useState('');
   const [parentComment, setParentComment] = React.useState('');
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isGeneratingParent, setIsGeneratingParent] = React.useState(false);
+  const [range, setRange] = React.useState('30');
 
   React.useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError('');
+      const days = parseInt(range, 10) || 30;
       try {
         const [academicData, behaviorData, healthData, attendanceData] = await Promise.all([
           fetchAcademicTrend(student.id, grade, subjects),
-          fetchBehaviorStats(student.id, grade, 30),
+          fetchBehaviorStats(student.id, grade, days * 2),
           fetchHealthSeries(student.id, grade),
-          fetchAttendanceStats(student.id, grade, 30),
+          fetchAttendanceStats(student.id, grade, days * 2),
         ]);
         if (!mounted) return;
         setAcademic(academicData || []);
         setBehavior(behaviorData || behavior);
         setHealth(healthData || []);
-        setAttendance(attendanceData || { stats: emptyStats, absentDays: [] });
+        setAttendance(attendanceData || { stats: { มาเรียน: 0, ขาด: 0, ลา: 0, สาย: 0 }, absentDays: [] });
       } catch (err) {
         console.error('Error loading progress data:', err);
         if (mounted) setError('โหลดข้อมูลไม่สำเร็จ โปรดลองใหม่อีกครั้ง');
@@ -57,12 +102,102 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
     };
     load();
     return () => { mounted = false; };
-  }, [student.id, grade, subjects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student.id, grade, subjects, range]);
+
+  // Derived computations
+  const scoreDelta = React.useMemo(() => {
+    const days = parseInt(range, 10) || 30;
+    const now = new Date();
+    const startCurrent = new Date(now);
+    startCurrent.setDate(now.getDate() - days + 1);
+    const startPrev = new Date(startCurrent);
+    startPrev.setDate(startCurrent.getDate() - days);
+    const endPrev = new Date(startCurrent);
+    endPrev.setDate(startCurrent.getDate() - 1);
+
+    const getAvg = (items) => {
+      const vals = items.filter((x) => typeof x.percentage === 'number').map((x) => x.percentage);
+      if (!vals.length) return null;
+      const sum = vals.reduce((s, v) => s + v, 0);
+      return sum / vals.length;
+    };
+
+    const currentItems = [];
+    const prevItems = [];
+    academic.forEach((sub) => {
+      sub.timeline.forEach((t) => {
+        const d = t.jsDate || (t.date ? new Date(t.date) : null);
+        if (!d || Number.isNaN(d.getTime())) return;
+        if (d >= startCurrent) currentItems.push(t);
+        else if (d >= startPrev && d <= endPrev) prevItems.push(t);
+      });
+    });
+
+    const currentAvg = getAvg(currentItems);
+    const previousAvg = getAvg(prevItems);
+    const delta = currentAvg !== null && previousAvg !== null ? currentAvg - previousAvg : null;
+    return { currentAvg, previousAvg, delta };
+  }, [academic, range]);
+
+  const behaviorDelta = React.useMemo(() => {
+    const days = parseInt(range, 10) || 30;
+    const now = new Date();
+    const startCurrent = new Date(now);
+    startCurrent.setDate(now.getDate() - days + 1);
+    const startPrev = new Date(startCurrent);
+    startPrev.setDate(startCurrent.getDate() - days);
+    const endPrev = new Date(startCurrent);
+    endPrev.setDate(startCurrent.getDate() - 1);
+
+    const currentLogs = [];
+    const prevLogs = [];
+    (behavior.logs || []).forEach((log) => {
+      const d = toJsDate(log.timestamp);
+      if (!d) return;
+      if (d >= startCurrent) currentLogs.push(log);
+      else if (d >= startPrev && d <= endPrev) prevLogs.push(log);
+    });
+
+    const ratio = (logs) => {
+      const pos = logs.filter((l) => l.type === 'positive').length;
+      const neg = logs.filter((l) => l.type !== 'positive').length;
+      const total = pos + neg;
+      if (!total) return { ratio: null, pos, neg };
+      return { ratio: (pos / total) * 100, pos, neg };
+    };
+
+    const cur = ratio(currentLogs);
+    const prev = ratio(prevLogs);
+    const delta = cur.ratio !== null && prev.ratio !== null ? cur.ratio - prev.ratio : null;
+    return { currentRatio: cur.ratio, previousRatio: prev.ratio, delta, pos: cur.pos, neg: cur.neg };
+  }, [behavior, range]);
+
+  const healthDelta = React.useMemo(() => {
+    if (!health.length) return { bmiNow: null, bmiPrev: null, delta: null, weightDelta: null, heightDelta: null };
+    const sorted = [...health].sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+    const latest = sorted[sorted.length - 1];
+    const prev = sorted.length > 1 ? sorted[sorted.length - 2] : null;
+    const bmiNow = bmi(latest.weight, latest.height);
+    const bmiPrev = prev ? bmi(prev.weight, prev.height) : null;
+    return {
+      bmiNow,
+      bmiPrev,
+      delta: bmiNow !== null && bmiPrev !== null ? bmiNow - bmiPrev : null,
+      weightDelta: prev && latest.weight != null && prev.weight != null ? latest.weight - prev.weight : null,
+      heightDelta: prev && latest.height != null && prev.height != null ? latest.height - prev.height : null,
+    };
+  }, [health]);
 
   const attendanceChartData = React.useMemo(() => {
-    const stats = attendance.stats || emptyStats;
+    const stats = attendance.stats || { มาเรียน: 0, ขาด: 0, ลา: 0, สาย: 0 };
     return Object.keys(stats).map((key) => ({ name: key, value: stats[key], color: attendanceColors[key] }));
   }, [attendance]);
+
+  const behaviorSeries = React.useMemo(() => ([
+    { name: 'เชิงบวก', value: behavior.positive, color: '#22c55e' },
+    { name: 'ควรส่งเสริม', value: behavior.needsAttention, color: '#f97316' },
+  ]), [behavior]);
 
   const academicTrend = React.useMemo(() => {
     const rows = [];
@@ -78,11 +213,6 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
     });
     return rows;
   }, [academic]);
-
-  const behaviorSeries = React.useMemo(() => ([
-    { name: 'เชิงบวก', value: behavior.positive, color: '#22c55e' },
-    { name: 'ควรส่งเสริม', value: behavior.needsAttention, color: '#f97316' },
-  ]), [behavior]);
 
   const handleGenerateAI = async () => {
     if (!academic?.length) return;
@@ -106,7 +236,7 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
       ${subjectText}
       พฤติกรรมล่าสุด:
       ${behaviorText}
-      การมาเรียน (30 วันที่ผ่านมา): ${attendanceText}
+      การมาเรียน (ช่วง ${range} วัน): ${attendanceText}
       สุขภาพ: ${healthText}
       ให้ระบุจุดเด่นและข้อแนะนำถัดไปที่เป็นเชิงบวก ใช้ภาษาไทยเข้าใจง่าย
       `;
@@ -143,6 +273,10 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
     }
   };
 
+  const scoreTrend = trendCopy[trendFromDelta(scoreDelta.delta)];
+  const behaviorTrend = trendCopy[trendFromDelta(behaviorDelta.delta)];
+  const healthTrend = trendCopy[trendFromDelta(healthDelta.delta)];
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[80] flex items-center justify-center p-3" onClick={onClose}>
       <div className="bg-[#0b1020] border border-slate-700 rounded-3xl w-full max-w-6xl h-[94vh] flex flex-col shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -154,7 +288,16 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
               <span className="text-sm font-normal text-slate-400">ป.{grade.replace('p','')}</span>
             </h2>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <select
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              className="bg-slate-900 border border-slate-600 text-slate-200 text-sm rounded-xl px-3 py-2"
+            >
+              {rangeOptions.map((opt) => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
             <button onClick={handleGenerateAI} disabled={loading || isGenerating} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-lg transition">
               {isGenerating ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="BrainCircuit" size={16} />}
               สรุปด้วย AI
@@ -177,6 +320,33 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
             <div className="flex items-center justify-center h-full text-slate-400"><Icon name="Loader2" className="animate-spin" size={36} /></div>
           ) : (
             <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-300 flex items-center gap-2"><Icon name="Target" />คะแนนรวม</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${scoreTrend.bg} ${scoreTrend.color}`}>{scoreTrend.text}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white mt-2">{scoreDelta.currentAvg !== null ? `${scoreDelta.currentAvg.toFixed(1)}%` : '—'}</p>
+                  <p className="text-xs text-slate-400">เทียบช่วงก่อนหน้า: {formatDeltaText(scoreDelta.delta)}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-300 flex items-center gap-2"><Icon name="SmilePlus" />พฤติกรรมเชิงบวก</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${behaviorTrend.bg} ${behaviorTrend.color}`}>{behaviorTrend.text}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white mt-2">{behaviorDelta.currentRatio !== null ? `${behaviorDelta.currentRatio.toFixed(1)}%` : '—'}</p>
+                  <p className="text-xs text-slate-400">เทียบช่วงก่อนหน้า: {formatDeltaText(behaviorDelta.delta)}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-300 flex items-center gap-2"><Icon name="HeartPulse" />สุขภาพ (BMI)</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${healthTrend.bg} ${healthTrend.color}`}>{healthTrend.text}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white mt-2">{healthDelta.bmiNow !== null ? healthDelta.bmiNow.toFixed(1) : '—'}</p>
+                  <p className="text-xs text-slate-400">Δ น้ำหนัก {formatDeltaText(healthDelta.weightDelta, 'kg')}</p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <section className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -207,7 +377,7 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
                     {academic.map((sub, idx) => (
                       <div key={sub.subjectId} className="flex items-center gap-2 bg-slate-900/50 rounded-lg px-3 py-2 border border-white/5">
-                        <span className={`w-2 h-2 rounded-full`} style={{ background: colorThemes[Object.keys(colorThemes)[idx % Object.keys(colorThemes).length]].hex }} />
+                        <span className="w-2 h-2 rounded-full" style={{ background: colorThemes[Object.keys(colorThemes)[idx % Object.keys(colorThemes).length]].hex }} />
                         <span className="truncate">{sub.subjectName}</span>
                         <span className="ml-auto text-slate-400">ส่ง {sub.submitted}/{sub.total}</span>
                       </div>
@@ -218,7 +388,7 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
                 <section className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <Icon name="Activity" className="text-amber-300" />
-                    <h3 className="font-bold text-white">พฤติกรรม 30 วันที่ผ่านมา</h3>
+                    <h3 className="font-bold text-white">พฤติกรรม (ช่วง {range} วัน + ย้อนหลังเทียบ)</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="h-40">
@@ -248,6 +418,9 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
                       )}
                     </div>
                   </div>
+                  <div className="text-xs text-slate-400">
+                    เชิงบวก {behaviorDelta.pos} รายการ / ควรส่งเสริม {behaviorDelta.neg} ในช่วง {range} วัน
+                  </div>
                 </section>
               </div>
 
@@ -273,12 +446,17 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
                       </ResponsiveContainer>
                     </div>
                   )}
+                  {healthDelta.bmiNow !== null && (
+                    <div className="mt-2 text-xs text-slate-300">
+                      BMI ล่าสุด {healthDelta.bmiNow.toFixed(1)} | Δ BMI {formatDeltaText(healthDelta.delta)} | Δ น้ำหนัก {formatDeltaText(healthDelta.weightDelta, 'kg')} | Δ ส่วนสูง {formatDeltaText(healthDelta.heightDelta, 'cm')}
+                    </div>
+                  )}
                 </section>
 
                 <section className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon name="CheckSquare" className="text-lime-300" />
-                    <h3 className="font-bold text-white">การมาเรียน 30 วันที่ผ่านมา</h3>
+                    <h3 className="font-bold text-white">การมาเรียน (ดูประกอบ)</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="h-48">
@@ -302,7 +480,7 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
                       ))}
                       {attendance.absentDays?.length > 0 && (
                         <div className="mt-2 text-xs text-rose-200">
-                          วันที่ขาด/ลา: {attendance.absentDays.slice(0, 5).join(', ')}
+                          วันที่ขาด/ลา (ล่าสุด): {attendance.absentDays.slice(0, 5).join(', ')}
                         </div>
                       )}
                     </div>

@@ -21,6 +21,8 @@ const calculateAge = (birthDateString) => {
 
 const StudentProfileModal = ({ student, grade, subjects, onClose, openModal }) => {
   const [studentScores, setStudentScores] = React.useState(null);
+  // isLoading kept for future spinner usage
+  // eslint-disable-next-line no-unused-vars
   const [isLoading, setIsLoading] = React.useState(true);
   const [aiSummary, setAiSummary] = React.useState('');
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -30,7 +32,7 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal }) =
   const [isLoggerOpen, setIsLoggerOpen] = React.useState(false);
   const [behaviorLogs, setBehaviorLogs] = React.useState([]);
   const [startDate, setStartDate] = React.useState('');
-  const [endDate, setEndDate] = React.useState('');
+  const [endDate] = React.useState('');
   const [confirmModal, setConfirmModal] = React.useState({ isOpen: false, data: null });
 
   // Health Data State
@@ -135,6 +137,7 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal }) =
         {
           weight: parseFloat(healthData.weight),
           height: parseFloat(healthData.height),
+          measuredAt: serverTimestamp(),
           lastUpdated: serverTimestamp(),
         },
         { merge: true }

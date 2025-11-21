@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { db, appId, logActivity } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 import AIQuizSetGeneratorModal from './AIQuizSetGeneratorModal';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 const quizSetsPath = `artifacts/${appId}/public/data/quiz_sets`;
 const quizSessionsPath = `artifacts/${appId}/public/data/quiz_sessions`;

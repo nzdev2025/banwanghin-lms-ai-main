@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, auth, onAuthStateChanged, handleLogout } from '../firebase/firebase';
 import { config } from '../config';
+/* eslint-disable react-refresh/only-export-components */
 
 const AppContext = createContext();
 

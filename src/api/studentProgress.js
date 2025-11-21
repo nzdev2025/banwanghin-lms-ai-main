@@ -31,6 +31,7 @@ export const fetchAcademicTrend = async (studentId, grade, subjects) => {
     const scoresSnap = await getDoc(doc(db, `${basePath}/scores`, studentId));
 
     const scoreMap = scoresSnap.exists() ? scoresSnap.data() : {};
+    const scoredAtMap = scoreMap.scoredAt || {};
     const timeline = [];
     let submitted = 0;
     let missing = 0;
@@ -39,6 +40,8 @@ export const fetchAcademicTrend = async (studentId, grade, subjects) => {
       const data = aDoc.data();
       const created = toDate(data.createdAt);
       const score = scoreMap[aDoc.id];
+      const scoredAt = toDate(scoredAtMap[aDoc.id]);
+      const effectiveDate = scoredAt || created;
       const hasScore = typeof score === 'number';
       if (hasScore) submitted += 1;
       else missing += 1;
@@ -46,7 +49,8 @@ export const fetchAcademicTrend = async (studentId, grade, subjects) => {
       timeline.push({
         assignmentId: aDoc.id,
         assignment: data.name,
-        date: created ? formatDate(created) : '',
+        date: effectiveDate ? formatDate(effectiveDate) : created ? formatDate(created) : '',
+        jsDate: effectiveDate || created || null,
         percentage: hasScore && data.maxScore ? (score / data.maxScore) * 100 : null,
         maxScore: data.maxScore,
         score: hasScore ? score : null,
@@ -104,12 +108,14 @@ export const fetchHealthSeries = async (studentId, grade) => {
     const snap = await getDoc(doc(db, path));
     if (snap.exists()) {
       const data = snap.data();
+      const measured = toDate(data.measuredAt || data.lastUpdated);
       series.push({
         term,
         label: term === 'term1' ? `เทอม 1/${buddhistYear}` : `เทอม 2/${buddhistYear}`,
         weight: data.weight ?? null,
         height: data.height ?? null,
-        updatedAt: toDate(data.lastUpdated),
+        updatedAt: measured,
+        measuredAt: measured,
       });
     }
   }

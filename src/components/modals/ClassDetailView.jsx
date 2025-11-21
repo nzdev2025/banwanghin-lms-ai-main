@@ -53,7 +53,23 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
             Object.keys(scores).forEach(studentId => {
                 const studentScores = scores[studentId];
                 const docRef = doc(db, `${subjectBasePath}/scores`, studentId);
-                batch.set(docRef, studentScores, { merge: true });
+
+                const payload = {};
+                const scoredAt = {};
+                assignments.forEach((assign) => {
+                    const val = studentScores?.[assign.id];
+                    if (val !== undefined) {
+                        payload[assign.id] = val;
+                        if (typeof val === 'number') {
+                            scoredAt[assign.id] = serverTimestamp();
+                        }
+                    }
+                });
+                if (Object.keys(scoredAt).length > 0) {
+                    payload.scoredAt = scoredAt;
+                }
+
+                batch.set(docRef, payload, { merge: true });
             });
             await batch.commit();
             logActivity('SCORE_UPDATE', `บันทึกคะแนนในวิชา <strong>${subject.name}</strong> (ป.${grade.replace('p','')})`);

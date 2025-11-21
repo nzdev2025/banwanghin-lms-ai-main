@@ -1,6 +1,6 @@
 // src/components/modals/HealthRecordModal.jsx (V5 - Smart Logic Update)
 import React from 'react';
-import { collection, onSnapshot, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, logActivity, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
@@ -133,7 +133,7 @@ const HealthRecordModal = ({ onClose }) => {
                 const data = healthData[studentId];
                 if(data && (data.weight || data.height)) {
                      const docRef = doc(db, healthCollectionPath, studentId);
-                     batch.set(docRef, { ...data, lastUpdated: new Date() }, { merge: true });
+                     batch.set(docRef, { ...data, lastUpdated: serverTimestamp(), measuredAt: serverTimestamp() }, { merge: true });
                 }
             });
             
