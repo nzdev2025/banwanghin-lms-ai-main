@@ -124,7 +124,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
     const currentTexts = placeholders[formData.docType];
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4 print:p-8 print:bg-white print:block" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4 print:p-8 print:bg-white print:block print-wrapper" onClick={onClose}>
              {/* --- Main Modal for Screen View --- */}
              <div className="bg-gray-800 border border-purple-500/50 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl shadow-black/50 print:hidden" onClick={(e) => e.stopPropagation()}>
                  <header className="flex items-center justify-between p-4 border-b border-white/10">
@@ -167,18 +167,20 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
              </div>
              
              {/* --- Printable Area (Visible on Print ONLY) --- */}
-             <div className="hidden print:block font-sarabun text-black">
-                <div className="school-header text-center mb-4">
-                    <h1 className="font-bold text-lg">{worksheetData?.title || 'แบบทดสอบ'}</h1>
-                    <h2 className="text-base">วิชา: {worksheetData?.subject || '..........................'}</h2>
-                </div>
-                <div className="info-section flex justify-between items-center border-t border-b border-black py-1 my-2 text-sm">
-                    <span>ชื่อ: ........................................................................................</span>
-                    <span>ชั้น: .........................</span>
-                    <span>เลขที่: ............</span>
-                </div>
-                <div className="content-area mt-4">
-                    {worksheetData ? <WorksheetRenderer worksheetData={worksheetData} /> : <p>ไม่มีข้อมูลสำหรับพิมพ์</p>}
+             <div className="hidden print:block font-sarabun text-black print-only-layout">
+                <div className="print-page">
+                    <div className="school-header text-center mb-4">
+                        <h1 className="font-bold text-lg">{worksheetData?.title || 'แบบทดสอบ'}</h1>
+                        <h2 className="text-base">วิชา: {worksheetData?.subject || '..........................'}</h2>
+                    </div>
+                    <div className="info-section flex justify-between items-center border-t border-b border-black py-1 my-2 text-sm">
+                        <span>ชื่อ: ........................................................................................</span>
+                        <span>ชั้น: .........................</span>
+                        <span>เลขที่: ............</span>
+                    </div>
+                    <div className="content-area mt-4">
+                        {worksheetData ? <WorksheetRenderer worksheetData={worksheetData} /> : <p>ไม่มีข้อมูลสำหรับพิมพ์</p>}
+                    </div>
                 </div>
              </div>
         </div>

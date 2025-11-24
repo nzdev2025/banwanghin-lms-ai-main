@@ -33,6 +33,39 @@
       print-color-adjust: exact !important;
     }
 
+    /* Allow modal container to become a normal flowing document for print */
+    .print-wrapper {
+      position: static !important;
+      inset: auto !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: visible !important;
+      display: block !important;
+      background: white !important;
+      padding: 0 !important;
+    }
+
+    /* Ensure printable block can paginate naturally */
+    .print-only-layout {
+      width: 100% !important;
+      overflow: visible !important;
+    }
+    .print-only-layout .print-page {
+      page-break-after: always;
+    }
+    .print-only-layout .print-page:last-child {
+      page-break-after: auto;
+    }
+    .print-only-layout li {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* Hide rest of app while printing (prevent dashboard page from appearing) */
+    #root > *:not(.print-wrapper) {
+      display: none !important;
+    }
+
     /* --- FIX: More aggressive scrollbar hiding --- */
     ::-webkit-scrollbar {
       display: none !important;
