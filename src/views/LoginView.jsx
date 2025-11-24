@@ -14,27 +14,55 @@ const LoginView = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const validateInputs = () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError('กรุณากรอกอีเมล');
+      return null;
+    }
+    // เบื้องต้นตรวจรูปแบบอีเมลแบบง่าย
+    if (!/\S+@\S+\.\S+/.test(normalizedEmail)) {
+      setError('รูปแบบอีเมลไม่ถูกต้อง');
+      return null;
+    }
+    if (!password || password.length < 6) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+      return null;
+    }
+    return normalizedEmail;
+  };
+
   const onLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    const normalizedEmail = validateInputs();
+    if (!normalizedEmail) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      await handleLogin(email, password);
+      await handleLogin(normalizedEmail, password);
     } catch (err) {
       setError(err.message);
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const onSignUp = async () => {
     setIsLoading(true);
     setError('');
+    const normalizedEmail = validateInputs();
+    if (!normalizedEmail) {
+      setIsLoading(false);
+      return;
+    }
     try {
-      await handleSignUp(email, password);
+      await handleSignUp(normalizedEmail, password);
     } catch (err) {
       setError(err.message);
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   return (

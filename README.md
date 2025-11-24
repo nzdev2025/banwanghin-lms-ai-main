@@ -147,15 +147,19 @@
    ```
    ไฟล์สำหรับใช้งานจริงจะอยู่ในโฟลเดอร์ `dist/`
 
-2. **ตัวเลือกการนำขึ้นใช้งาน**
-   - **Firebase Hosting** (ง่ายที่สุดกับระบบปัจจุบัน)  
-     - ติดตั้ง CLI: `npm install -g firebase-tools`  
-     - เข้าสู่ระบบ: `firebase login`  
-     - ตั้งค่า: `firebase init hosting` (เลือกโปรเจ็กต์เดียวกับ Firestore)  
-     - Deploy: `firebase deploy --only hosting`
-   - **เซิร์ฟเวอร์อื่น** เช่น Nginx/Apache  
-     - คัดลอกไฟล์ทั้งหมดใน `dist/` ไปไว้ในโฟลเดอร์เว็บ
-     - ตั้งค่า Reverse Proxy ให้ชี้ไปที่ `index.html` (Single Page App)
+2. **Deploy แบบอัตโนมัติด้วย Firebase Hosting**
+   - โปรเจ็กต์เตรียม `firebase.json` + `.firebaserc` + สคริปต์ `npm run deploy:firebase` ไว้แล้ว
+   - หากยังไม่เคยล็อกอิน CLI: `npx firebase login`
+   - ตั้งค่าโปรเจ็กต์เริ่มต้น (เขียนลง `.firebaserc`): `npx firebase use <projectId>` หรือแก้ `"default"` ในไฟล์ `.firebaserc`
+   - Deploy ทีเดียว:  
+     ```bash
+     npm run deploy:firebase   # build + firebase deploy --only hosting
+     ```
+   - โฟลเดอร์ deploy คือ `dist/` และมี rewrite SPA ไป `index.html` พร้อม cache headers ใน `firebase.json`
+
+3. **เซิร์ฟเวอร์อื่น** เช่น Nginx/Apache  
+   - คัดลอกไฟล์ทั้งหมดใน `dist/` ไปไว้ในโฟลเดอร์เว็บ
+   - ตั้งค่า Reverse Proxy ให้ชี้ไปที่ `index.html` (Single Page App)
 
 > หากโรงเรียนต้องการแยกฐานข้อมูลระหว่างการทดสอบ/ใช้งานจริง ให้สร้างโปรเจ็กต์ Firebase เพิ่มแล้วอัปเดตค่าในไฟล์ `.env`
 
@@ -244,4 +248,3 @@ service cloud.firestore {
 โค้ดชุดนี้เปิดให้ใช้งานและพัฒนาต่อได้ภายใต้เงื่อนไขโอเพนซอร์สของผู้พัฒนาโรงเรียนบ้านวังหิน โปรดตรวจสอบ LICENSE (หากระบุไว้) หรือสอบถามเพิ่มเติมก่อนใช้งานในเชิงพาณิชย์
 
 ขอให้สนุกกับการยกระดับห้องเรียนไทยด้วย AI! 🚀
-
