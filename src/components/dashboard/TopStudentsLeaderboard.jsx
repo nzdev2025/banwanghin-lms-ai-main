@@ -1,13 +1,11 @@
 // src/components/dashboard/TopStudentsLeaderboard.jsx (The "Champion" Version)
 import React from 'react';
-import { getDocs, collection } from 'firebase/firestore';
-import { db, appId } from '../../firebase/firebase';
-import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
+import { useStudentPerformanceData } from '../../hooks/useStudentPerformanceData';
 
 const TopStudentsLeaderboard = ({ subjects, onStudentClick }) => {
     const [topStudents, setTopStudents] = React.useState([]);
-    const [isLoading, setIsLoading] = React.useState(true);
+    const { students, assignments, loading } = useStudentPerformanceData(subjects);
 
     // Memoize podium styles to avoid redefining on each render
     const podiumStyles = React.useMemo(() => ({
@@ -17,66 +15,28 @@ const TopStudentsLeaderboard = ({ subjects, onStudentClick }) => {
     }), []);
 
     React.useEffect(() => {
-        const calculateTopStudents = async () => {
-            if (!db || subjects.length === 0) {
-                setIsLoading(false);
-                return;
-            }
-            setIsLoading(true);
+        if (loading) return;
 
-            const studentData = new Map();
-            const assignmentsMap = new Map();
-
-            // 1. Fetch all data
-            for (const grade of grades) {
-                 const studentsSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/rosters/${grade}/students`));
-                 studentsSnap.forEach(doc => {
-                    if (!studentData.has(doc.id)) {
-                        studentData.set(doc.id, { ...doc.data(), id: doc.id, grade, scores: {} });
-                    }
-                });
-
-                for (const subject of subjects) {
-                    const assignmentsSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/assignments`));
-                    assignmentsSnap.forEach(doc => {
-                        if (!assignmentsMap.has(doc.id)) assignmentsMap.set(doc.id, doc.data());
-                    });
-
-                    const scoresSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/scores`));
-                    scoresSnap.forEach(scoreDoc => {
-                        const student = studentData.get(scoreDoc.id);
-                        if (student) {
-                            student.scores = { ...student.scores, ...scoreDoc.data() };
-                        }
-                    });
-                }
-            }
-            
-            // 2. Calculate scores and rank
-            const rankedStudents = [];
-            studentData.forEach(student => {
-                let totalEarned = 0;
-                let totalMax = 0;
-                Object.keys(student.scores).forEach(assignmentId => {
-                    const assignment = assignmentsMap.get(assignmentId);
-                    if (assignment && typeof student.scores[assignmentId] === 'number') {
-                        totalEarned += student.scores[assignmentId];
-                        totalMax += assignment.maxScore;
-                    }
-                });
-                const percentage = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
-                if (percentage > 0) {
-                     rankedStudents.push({ ...student, score: percentage });
+        const rankedStudents = [];
+        students.forEach((student) => {
+            let totalEarned = 0;
+            let totalMax = 0;
+            Object.keys(student.scores || {}).forEach((assignmentId) => {
+                const assignment = assignments.get(assignmentId);
+                if (assignment && typeof student.scores[assignmentId] === 'number') {
+                    totalEarned += student.scores[assignmentId];
+                    totalMax += assignment.maxScore;
                 }
             });
+            const percentage = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
+            if (percentage > 0) {
+                rankedStudents.push({ ...student, score: percentage });
+            }
+        });
 
-            const topThree = rankedStudents.sort((a, b) => b.score - a.score).slice(0, 3);
-            setTopStudents(topThree);
-            setIsLoading(false);
-        };
-
-        calculateTopStudents();
-    }, [subjects]);
+        const topThree = rankedStudents.sort((a, b) => b.score - a.score).slice(0, 3);
+        setTopStudents(topThree);
+    }, [assignments, loading, students]);
 
     return (
         <div className="min-h-[240px] rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-lg shadow-[0_25px_55px_-35px_rgba(15,23,42,0.8)]">
@@ -84,7 +44,7 @@ const TopStudentsLeaderboard = ({ subjects, onStudentClick }) => {
                 <Icon name="Crown" className="text-amber-300" />
                 นักเรียนยอดเยี่ยม (Leaderboard)
             </h3>
-            {isLoading ? (
+            {loading ? (
                  <div className="space-y-3">
                     {Array(3).fill(0).map((_, i) => <div key={i} className="h-16 bg-gray-700/50 rounded-lg animate-pulse"></div>)}
                 </div>

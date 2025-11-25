@@ -1,79 +1,35 @@
 // src/components/dashboard/AtRiskStudents.jsx (The "High Alert" Version)
 import React from 'react';
-import { getDocs, collection } from 'firebase/firestore';
-import { db, appId } from '../../firebase/firebase';
-import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
+import { useStudentPerformanceData } from '../../hooks/useStudentPerformanceData';
 
 const AtRiskStudents = ({ subjects, onStudentClick }) => {
-    const [atRiskStudents, setAtRiskStudents] = React.useState([]);
-    const [isLoading, setIsLoading] = React.useState(true);
+    const { students, assignments, loading } = useStudentPerformanceData(subjects);
 
-    React.useEffect(() => {
-        const findAtRiskStudents = async () => {
-            if (!db || subjects.length === 0) {
-                setIsLoading(false);
-                return;
-            }
-            setIsLoading(true);
+    const atRiskStudents = React.useMemo(() => {
+        const atRisk = [];
+        if (loading) return atRisk;
 
-            const allStudentsData = new Map();
-            const allAssignments = new Map();
-
-            // Fetch all data first
-            for (const grade of grades) {
-                const studentsSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/rosters/${grade}/students`));
-                studentsSnap.forEach(doc => {
-                    if (!allStudentsData.has(doc.id)) {
-                        allStudentsData.set(doc.id, { ...doc.data(), id: doc.id, grade });
-                    }
-                });
-
-                for (const subject of subjects) {
-                    const assignmentsSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/assignments`));
-                    assignmentsSnap.forEach(doc => {
-                        if (!allAssignments.has(doc.id)) {
-                            allAssignments.set(doc.id, { ...doc.data(), subjectName: subject.name });
-                        }
-                    });
-
-                    const scoresSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}/scores`));
-                    scoresSnap.forEach(scoreDoc => {
-                        const student = allStudentsData.get(scoreDoc.id);
-                        if (student) {
-                            if (!student.scores) student.scores = {};
-                            student.scores = { ...student.scores, ...scoreDoc.data() };
-                        }
-                    });
-                }
-            }
-
-            // Process data to find at-risk students
-            const atRisk = [];
-            allStudentsData.forEach(student => {
-                let lowScoreCount = 0;
-                if (student.scores) {
-                    for (const assignmentId in student.scores) {
-                        const assignment = allAssignments.get(assignmentId);
-                        const score = student.scores[assignmentId];
-                        if (assignment && typeof score === 'number') {
-                            if ((score / assignment.maxScore) < 0.5) { // less than 50%
-                                lowScoreCount++;
-                            }
+        students.forEach((student) => {
+            let lowScoreCount = 0;
+            if (student.scores) {
+                for (const assignmentId in student.scores) {
+                    const assignment = assignments.get(assignmentId);
+                    const score = student.scores[assignmentId];
+                    if (assignment && typeof score === 'number') {
+                        if (score / assignment.maxScore < 0.5) {
+                            lowScoreCount += 1;
                         }
                     }
                 }
-                if (lowScoreCount >= 2) { // At-risk if 2 or more scores are below 50%
-                    atRisk.push({ ...student, lowScoreCount });
-                }
-            });
+            }
+            if (lowScoreCount >= 2) {
+                atRisk.push({ ...student, lowScoreCount });
+            }
+        });
 
-            setAtRiskStudents(atRisk.sort((a, b) => b.lowScoreCount - a.lowScoreCount));
-            setIsLoading(false);
-        };
-
-        findAtRiskStudents();
-    }, [subjects]);
+        return atRisk.sort((a, b) => b.lowScoreCount - a.lowScoreCount);
+    }, [students, assignments, loading]);
 
     return (
         <div className="min-h-[240px] rounded-3xl border border-rose-500/35 bg-rose-500/10 p-6 shadow-[0_25px_55px_-35px_rgba(244,63,94,0.65)] backdrop-blur-lg">
@@ -81,7 +37,7 @@ const AtRiskStudents = ({ subjects, onStudentClick }) => {
                 <Icon name="AlertTriangle" className="text-rose-400" />
                 นักเรียนที่น่าเป็นห่วง
             </h3>
-            {isLoading ? (
+            {loading ? (
                 <div className="flex items-center justify-center h-48"><Icon name="Loader2" className="animate-spin text-rose-400" size={32} /></div>
             ) : atRiskStudents.length === 0 ? (
                 <div className="text-center py-4 flex flex-col items-center justify-center h-48">

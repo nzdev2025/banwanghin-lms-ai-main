@@ -49,15 +49,57 @@ requiredKeys.forEach((key) => {
   firebaseConfig[camelCaseKey] = val;
 });
 
+// Validate that all required values are present and the appId looks sane.
+const validateFirebaseConfig = (config) => {
+  const keyMap = {
+    apiKey: 'VITE_FIREBASE_API_KEY',
+    authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
+    projectId: 'VITE_FIREBASE_PROJECT_ID',
+    storageBucket: 'VITE_FIREBASE_STORAGE_BUCKET',
+    messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID',
+    appId: 'VITE_FIREBASE_APP_ID',
+  };
+
+  const missing = Object.entries(keyMap)
+    .filter(([prop]) => !config[prop])
+    .map(([, envKey]) => envKey);
+
+  const errors = [];
+  if (missing.length) {
+    errors.push(`missing env vars: ${missing.join(', ')}`);
+  }
+
+  const appIdPattern = /^1:\d{6,}:web:[a-f0-9]+$/i;
+  if (config.appId && !appIdPattern.test(config.appId)) {
+    errors.push('VITE_FIREBASE_APP_ID format ไม่ถูกต้อง (คัดลอกจาก Firebase Console ให้ครบทุกตัวอักษร)');
+  }
+
+  if (errors.length) {
+    console.error(`[Firebase config invalid] ${errors.join(' | ')}`);
+    return false;
+  }
+
+  return true;
+};
+
+const firebaseConfigIsValid = validateFirebaseConfig(firebaseConfig);
+if (!firebaseConfigIsValid) {
+  throw new Error(
+    'Firebase config ไม่ถูกต้อง กรุณาตรวจสอบค่า .env (คัดลอกจาก Firebase Console ให้ครบถ้วน)',
+  );
+}
+
 let app;
 let db;
 let auth;
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-} catch (e) {
-  console.error('Firebase initialization error:', e);
+if (firebaseConfigIsValid) {
+  try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } catch (e) {
+    console.error('Firebase initialization error:', e);
+  }
 }
 
 // Export a default appId in case one is injected at runtime.  When

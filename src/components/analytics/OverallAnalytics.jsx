@@ -1,8 +1,8 @@
 import React from 'react';
-import { getDocs, collection, collectionGroup } from 'firebase/firestore';
+import { getDocs, collectionGroup } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
-import { grades } from '../../constants/data';
 import { colorThemes } from '../../constants/theme';
+import { useStudentPerformanceData } from '../../hooks/useStudentPerformanceData';
 import KeyMetricCard from './KeyMetricCard';
 import SavingsGlowChart from './SavingsGlowChart';
 import SubjectPerformanceChart from './SubjectPerformanceChart';
@@ -19,21 +19,16 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
     isLoading: true,
   });
   const [performanceData, setPerformanceData] = React.useState([]);
+  const { students, assignments, loading: perfLoading } = useStudentPerformanceData(subjects);
 
   React.useEffect(() => {
+    let cancelled = false;
     const fetchAllStats = async () => {
-      if (!db) {
-        setStats((s) => ({ ...s, isLoading: false }));
-        return;
-      }
+      if (!db || perfLoading) return;
       setStats((s) => ({ ...s, isLoading: true }));
 
-      let totalStudents = 0;
-      let grandTotalScore = 0;
-      let grandTotalMaxScore = 0;
       let totalDeposits = 0;
       let totalWithdrawals = 0;
-      const subjectAverages = [];
 
       try {
         const transactionsQuery = collectionGroup(db, 'transactions');
@@ -53,64 +48,48 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
         console.error('Error fetching savings data:', error);
       }
 
-      const studentCountPromises = grades.map((grade) =>
-        getDocs(collection(db, `artifacts/${appId}/public/data/rosters/${grade}/students`)),
-      );
-      const studentCountSnapshots = await Promise.all(studentCountPromises);
-      studentCountSnapshots.forEach((snap) => {
-        totalStudents += snap.size;
+      // ใช้ข้อมูลคะแนน/นักเรียนจากแคชกลาง (ลดรอบยิง Firestore ซ้ำ)
+      let grandTotalScore = 0;
+      let grandTotalMaxScore = 0;
+      const subjectTotals = new Map();
+
+      subjects.forEach((subject) => {
+        subjectTotals.set(subject.id, { score: 0, max: 0 });
       });
 
-      for (const subject of subjects) {
-        let subjectTotalScore = 0;
-        let subjectTotalMaxScore = 0;
+      students.forEach((student) => {
+        Object.entries(student.scores || {}).forEach(([assignmentId, score]) => {
+          const assignment = assignments.get(assignmentId);
+          if (!assignment || typeof score !== 'number') return;
+          const totals = subjectTotals.get(assignment.subjectId);
+          if (!totals) return;
 
-        for (const grade of grades) {
-          const basePath = `artifacts/${appId}/public/data/subjects/${subject.id}/grades/${grade}`;
-          try {
-            const [assignmentsSnap, scoresSnap] = await Promise.all([
-              getDocs(collection(db, `${basePath}/assignments`)),
-              getDocs(collection(db, `${basePath}/scores`)),
-            ]);
+          totals.score += score;
+          totals.max += assignment.maxScore;
+          grandTotalScore += score;
+          grandTotalMaxScore += assignment.maxScore;
+        });
+      });
 
-            const assignmentsMap = new Map();
-            assignmentsSnap.forEach((doc) => assignmentsMap.set(doc.id, doc.data()));
-
-            scoresSnap.forEach((scoreDoc) => {
-              const scores = scoreDoc.data();
-              for (const assignmentId in scores) {
-                const assignment = assignmentsMap.get(assignmentId);
-                if (assignment && typeof scores[assignmentId] === 'number') {
-                  subjectTotalScore += scores[assignmentId];
-                  subjectTotalMaxScore += assignment.maxScore;
-                }
-              }
-            });
-          } catch {
-            // ignore fetch errors for individual subjects
-          }
-        }
-
-        grandTotalScore += subjectTotalScore;
-        grandTotalMaxScore += subjectTotalMaxScore;
-
-        const subjectAverage =
-          subjectTotalMaxScore > 0 ? (subjectTotalScore / subjectTotalMaxScore) * 100 : 0;
+      const subjectAverages = subjects.map((subject) => {
+        const totals = subjectTotals.get(subject.id) || { score: 0, max: 0 };
+        const subjectAverage = totals.max > 0 ? (totals.score / totals.max) * 100 : 0;
         const themeKey = subject.colorTheme || 'teal';
-        subjectAverages.push({
+        return {
           id: subject.id,
           name: subject.name,
           average: subjectAverage,
           colorTheme: { key: themeKey, ...colorThemes[themeKey] },
-        });
-      }
+        };
+      });
 
       const overallAverage =
         grandTotalMaxScore > 0 ? (grandTotalScore / grandTotalMaxScore) * 100 : 0;
 
+      if (cancelled) return;
       setPerformanceData(subjectAverages.sort((a, b) => b.average - a.average));
       setStats({
-        totalStudents,
+        totalStudents: students.size,
         overallAverage,
         totalDeposits,
         totalWithdrawals,
@@ -119,7 +98,10 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
     };
 
     fetchAllStats();
-  }, [subjects]);
+    return () => {
+      cancelled = true;
+    };
+  }, [assignments, perfLoading, students, subjects]);
 
   const metricCards = [
     {
