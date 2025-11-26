@@ -7,7 +7,7 @@
 // gracefully handles initialization errors.
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
   getAuth,
   createUserWithEmailAndPassword,
@@ -95,10 +95,19 @@ let auth;
 if (firebaseConfigIsValid) {
   try {
     app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+    // Force long polling for flaky / restricted networks (เช่น Wi-Fi โรงเรียนที่บล็อก WebSocket)
+    // disable fetch streams to maximise compatibility onมือถือ
+    db = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      useFetchStreams: false,
+    });
     auth = getAuth(app);
   } catch (e) {
     console.error('Firebase initialization error:', e);
+    if (app && !db) {
+      // fallback ถ้า init ด้วย long polling มีปัญหา
+      db = getFirestore(app);
+    }
   }
 }
 

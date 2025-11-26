@@ -1,5 +1,5 @@
 import React from 'react';
-import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where, setDoc } from 'firebase/firestore';
 import { db, appId } from '../firebase/firebase';
 import Icon from '../icons/Icon';
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -79,6 +79,7 @@ const LightningQuizJoinView = () => {
     setParticipantStatus(null);
     setSelectedOption(null);
     setSubmittedForQuestion(null);
+    setError('');
   };
 
   // Subscribe session detail once joined
@@ -107,9 +108,10 @@ const LightningQuizJoinView = () => {
   }, [db, session]);
 
   const currentQuestion =
-    sessionDetail?.questions && sessionDetail.currentQuestionIndex !== null && sessionDetail.currentQuestionIndex >= 0
+    sessionDetail?.questions && sessionDetail?.currentQuestionIndex !== null && sessionDetail?.currentQuestionIndex >= 0
       ? sessionDetail.questions[sessionDetail.currentQuestionIndex]
       : null;
+  const currentQuestionIndex = sessionDetail?.currentQuestionIndex;
 
   // รีเซ็ตสถานะเมื่อมีการเปลี่ยนคำถามหรือรีเซ็ตคำถามเดิม (token ใหม่)
   React.useEffect(() => {
@@ -125,19 +127,35 @@ const LightningQuizJoinView = () => {
 
   // Countdown timer for student side
   React.useEffect(() => {
-    if (!sessionDetail?.questionEndsAt || sessionDetail.currentQuestionIndex === null) {
+    if (!sessionDetail || currentQuestionIndex === null || currentQuestionIndex === undefined) {
       setTimeLeft(null);
       return undefined;
     }
     const interval = setInterval(() => {
-      const end = sessionDetail.questionEndsAt.toDate
-        ? sessionDetail.questionEndsAt.toDate()
-        : new Date(sessionDetail.questionEndsAt);
-      const ms = end.getTime() - Date.now();
+      const start = sessionDetail?.questionStartedAt?.toDate
+        ? sessionDetail.questionStartedAt.toDate()
+        : sessionDetail?.questionStartedAt
+          ? new Date(sessionDetail.questionStartedAt)
+          : null;
+      const duration = sessionDetail?.questionDuration || currentQuestion?.duration || 20;
+      let endMs;
+      if (start) {
+        endMs = start.getTime() + duration * 1000;
+      } else if (sessionDetail?.questionEndsAt) {
+        const end = sessionDetail.questionEndsAt.toDate
+          ? sessionDetail.questionEndsAt.toDate()
+          : new Date(sessionDetail.questionEndsAt);
+        endMs = end.getTime();
+      }
+      if (!endMs) {
+        setTimeLeft(null);
+        return;
+      }
+      const ms = endMs - Date.now();
       setTimeLeft(Math.max(0, Math.floor(ms / 1000)));
     }, 500);
     return () => clearInterval(interval);
-  }, [sessionDetail?.questionEndsAt, sessionDetail?.currentQuestionIndex]);
+  }, [sessionDetail?.questionStartedAt, sessionDetail?.questionEndsAt, currentQuestionIndex, currentQuestion?.duration]);
 
   // Subscribe my answers
   React.useEffect(() => {
@@ -260,7 +278,7 @@ const LightningQuizJoinView = () => {
       !db ||
       !sessionDetail ||
       sessionDetail.status !== 'running' ||
-      sessionDetail.currentQuestionIndex === null ||
+      currentQuestionIndex === null ||
       selectedOption === null ||
       !alias.trim() ||
       timeLeft === 0 ||
@@ -292,9 +310,9 @@ const LightningQuizJoinView = () => {
 
       // ป้องกันส่งซ้ำคำถามเดียวกันด้วย alias เดิม
       const answersRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/answers`);
-      const tokenForQuestion = sessionDetail.questionTokens?.[sessionDetail.currentQuestionIndex] || null;
+      const tokenForQuestion = sessionDetail.questionTokens?.[currentQuestionIndex] || null;
       const dupFilters = [
-        where('questionIndex', '==', sessionDetail.currentQuestionIndex),
+        where('questionIndex', '==', currentQuestionIndex),
         where('deviceId', '==', deviceId),
       ];
       if (tokenForQuestion) {
@@ -307,28 +325,35 @@ const LightningQuizJoinView = () => {
       );
       const dupSnap = await getDocs(dupQuery);
       if (!dupSnap.empty) {
-        setSubmittedForQuestion(sessionDetail.currentQuestionIndex);
+        setSubmittedForQuestion(currentQuestionIndex);
         setIsSubmitting(false);
         return;
       }
 
-      await addDoc(answersRef, {
+      const answerId = `q${currentQuestionIndex}_dev_${deviceId}`;
+      await setDoc(doc(answersRef, answerId), {
         alias: alias.trim(),
         deviceId,
         optionIndex: selectedOption,
-        questionIndex: sessionDetail.currentQuestionIndex,
+        questionIndex: currentQuestionIndex,
         questionToken: tokenForQuestion,
         submittedAt: new Date(),
-      });
+      }, { merge: false });
       if (participantDocId) {
         await updateDoc(doc(participantsRef, participantDocId), {
           lastAnswerAt: new Date(),
         });
       }
-      setSubmittedForQuestion(sessionDetail.currentQuestionIndex);
+      setSubmittedForQuestion(currentQuestionIndex);
     } catch (err) {
       console.error('submit answer failed', err);
-      setError('ส่งคำตอบไม่สำเร็จ');
+      // ถ้าตอบซ้ำจะโดน rule บล็อก ถือว่าตอบแล้ว
+      if (err?.code === 'permission-denied') {
+        setSubmittedForQuestion(currentQuestionIndex);
+        setError('ส่งคำตอบแล้ว');
+      } else {
+        setError('ส่งคำตอบไม่สำเร็จ');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -542,7 +567,7 @@ const LightningQuizJoinView = () => {
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">Question #{sessionDetail.currentQuestionIndex + 1}</p>
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">Question #{(currentQuestionIndex ?? 0) + 1}</p>
                       <p className="text-lg font-semibold text-white">{currentQuestion.text}</p>
                     </div>
                     <div className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
@@ -553,7 +578,7 @@ const LightningQuizJoinView = () => {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {currentQuestion.options?.map((opt, idx) => {
                       const isSelected = selectedOption === idx;
-                      const isLocked = submittedForQuestion === sessionDetail.currentQuestionIndex;
+                      const isLocked = submittedForQuestion === currentQuestionIndex;
                       const isReveal = sessionDetail?.revealAnswer;
                       const isCorrect = Number(currentQuestion.answerIndex) === idx;
                       return (
@@ -592,7 +617,7 @@ const LightningQuizJoinView = () => {
                       onClick={handleSubmitAnswer}
                       disabled={
                         selectedOption === null ||
-                        submittedForQuestion === sessionDetail.currentQuestionIndex ||
+                        submittedForQuestion === currentQuestionIndex ||
                         !alias.trim() ||
                         isSubmitting ||
                         sessionDetail?.revealAnswer
@@ -603,18 +628,26 @@ const LightningQuizJoinView = () => {
                       ส่งคำตอบ
                     </button>
                   </div>
-                  {submittedForQuestion === sessionDetail.currentQuestionIndex && (
+                  {submittedForQuestion === currentQuestionIndex && (
                     <p className="text-xs text-emerald-300">
                       รับคำตอบแล้ว {sessionDetail?.revealAnswer ? 'รอฟังเฉลย' : 'รอคำถามถัดไป'}
                     </p>
                   )}
                 </div>
-              ) : (
-                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
-                  <div className="text-center text-white/70">
-                    <Icon name="Hourglass" size={36} className="mx-auto text-white/40" />
-                    <p className="mt-2">โปรดรอครูเริ่มคำถาม</p>
-                    <p className="text-xs text-white/50">ระบบตอบกลับนักเรียนจะค่อยๆ เปิดให้ใช้งาน</p>
+      ) : !sessionDetail ? (
+          <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
+            <div className="text-center text-white/70">
+              <Icon name="Loader2" size={36} className="mx-auto animate-spin text-white/60" />
+              <p className="mt-2">กำลังโหลดเกม...</p>
+              <p className="text-xs text-white/50">ถ้าใช้เวลาเกิน 5 วินาที ให้กดรีเฟรชหรือใส่ PIN ใหม่</p>
+            </div>
+          </div>
+        ) : (
+        <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
+          <div className="text-center text-white/70">
+            <Icon name="Hourglass" size={36} className="mx-auto text-white/40" />
+            <p className="mt-2">โปรดรอครูเริ่มคำถาม</p>
+            <p className="text-xs text-white/50">ระบบตอบกลับนักเรียนจะค่อยๆ เปิดให้ใช้งาน</p>
                   </div>
                 </div>
               )}

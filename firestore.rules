@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowQuizRead() {
+      return true;
+    }
+
+    // Lightning Quiz: เปิดให้เด็ก join/read ได้โดยไม่ต้องล็อกอิน
+    match /artifacts/{appId}/public/data/quiz_sessions/{sessionId} {
+      // ครู (ล็อกอิน) ยังอัปเดต/ปิดเกมได้ตามกติกาหลัก
+      allow get, list: if allowQuizRead();
+      allow create, update, delete: if request.auth != null;
+
+      // รายชื่อผู้เข้าร่วม (เด็กสร้างเองได้)
+      match /participants/{participantId} {
+        allow get, list: if allowQuizRead();
+        allow create: if request.resource.data.keys().hasOnly(['alias', 'deviceId', 'joinedAt']) &&
+          request.resource.data.alias is string &&
+          request.resource.data.alias.size() > 0 &&
+          request.resource.data.alias.size() <= 40 &&
+          request.resource.data.deviceId is string &&
+          request.resource.data.deviceId.size() <= 80 &&
+          request.resource.data.joinedAt is timestamp;
+        allow update: if request.resource.data.keys().hasOnly(['lastAnswerAt']) &&
+          request.resource.data.lastAnswerAt is timestamp;
+        allow delete: if false;
+      }
+
+      // คำตอบที่เด็กส่ง
+      match /answers/{answerId} {
+        allow get, list: if allowQuizRead();
+        allow create: if request.resource.data.keys().hasOnly([
+              'alias',
+              'deviceId',
+              'optionIndex',
+              'questionIndex',
+              'questionToken',
+              'submittedAt'
+            ]) &&
+          request.resource.data.alias is string &&
+          request.resource.data.alias.size() > 0 &&
+          request.resource.data.alias.size() <= 40 &&
+          request.resource.data.deviceId is string &&
+          request.resource.data.deviceId.size() <= 80 &&
+          request.resource.data.optionIndex is int &&
+          request.resource.data.questionIndex is int &&
+          (request.resource.data.questionToken is string || request.resource.data.questionToken == null) &&
+          request.resource.data.submittedAt is timestamp;
+        allow update, delete: if false;
+      }
+    }
+
+    // กติกาหลัก: ส่วนอื่นต้องล็อกอิน
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

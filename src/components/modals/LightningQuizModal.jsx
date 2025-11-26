@@ -49,6 +49,14 @@ const LightningQuizModal = ({ onClose }) => {
   const [isStartingSession, setIsStartingSession] = React.useState(false);
   const [error, setError] = React.useState('');
   const [copySuccess, setCopySuccess] = React.useState(false);
+  const [shareError, setShareError] = React.useState('');
+  const [showQr, setShowQr] = React.useState(false);
+  const [respondedCount, setRespondedCount] = React.useState(0);
+  const currentQuestionIndex = sessionDoc?.currentQuestionIndex;
+  const currentQuestion =
+    sessionDoc?.questions && currentQuestionIndex !== null && currentQuestionIndex !== undefined && currentQuestionIndex >= 0
+      ? sessionDoc.questions[currentQuestionIndex]
+      : null;
 
   React.useEffect(() => {
     if (!db) {
@@ -111,6 +119,7 @@ const LightningQuizModal = ({ onClose }) => {
   // Subscribe answers for scoring/statistics based on latest questions
   React.useEffect(() => {
     if (!db || !activeSession || !sessionDoc?.questions) return undefined;
+    if (currentQuestionIndex === null || currentQuestionIndex === undefined) return undefined;
     const answersAllRef = collection(db, `${quizSessionsPath}/${activeSession.id}/answers`);
     const unsubAnswersAll = onSnapshot(answersAllRef, (snap) => {
       const scores = {};
@@ -148,26 +157,52 @@ const LightningQuizModal = ({ onClose }) => {
     };
   }, [db, activeSession, sessionDoc?.questions]);
 
-  // Countdown timer for current question
+  // Reset timers/counts whenเปลี่ยนคำถาม
   React.useEffect(() => {
-    if (!sessionDoc?.questionEndsAt || sessionDoc.currentQuestionIndex === null) {
+    setTimeLeft(null);
+    setAnswerCounts([]);
+    setRespondedCount(0);
+    setIsRevealing(false);
+    autoRevealKey.current = null;
+  }, [currentQuestionIndex]);
+
+  // Countdown timer for current question (host side)
+  React.useEffect(() => {
+    if (currentQuestionIndex === null || currentQuestionIndex === undefined) {
       setTimeLeft(null);
       return undefined;
     }
     const interval = setInterval(() => {
-      const end = sessionDoc.questionEndsAt.toDate ? sessionDoc.questionEndsAt.toDate() : new Date(sessionDoc.questionEndsAt);
-      const ms = end.getTime() - Date.now();
+      const start = sessionDoc?.questionStartedAt?.toDate
+        ? sessionDoc.questionStartedAt.toDate()
+        : sessionDoc?.questionStartedAt
+          ? new Date(sessionDoc.questionStartedAt)
+          : null;
+      const duration = sessionDoc?.questionDuration || currentQuestion?.duration || questionDuration || 20;
+      let endMs;
+      if (start) {
+        endMs = start.getTime() + duration * 1000;
+      } else if (sessionDoc?.questionEndsAt) {
+        const end = sessionDoc.questionEndsAt.toDate ? sessionDoc.questionEndsAt.toDate() : new Date(sessionDoc.questionEndsAt);
+        endMs = end.getTime();
+      }
+      if (!endMs) {
+        setTimeLeft(null);
+        return;
+      }
+      const ms = endMs - Date.now();
       setTimeLeft(Math.max(0, Math.floor(ms / 1000)));
     }, 500);
     return () => clearInterval(interval);
-  }, [sessionDoc?.questionEndsAt, sessionDoc?.currentQuestionIndex]);
+  }, [sessionDoc?.questionStartedAt, sessionDoc?.questionEndsAt, currentQuestionIndex, sessionDoc?.questionDuration, questionDuration, currentQuestion?.duration]);
 
   // Auto-reveal when time is up
   React.useEffect(() => {
     if (!db || !activeSession || !sessionDoc || sessionDoc.status !== 'running') return;
-    if (timeLeft !== 0) return;
+    if (timeLeft === null || timeLeft !== 0) return;
     if (sessionDoc.revealAnswer) return;
-    const key = `${activeSession.id}-${sessionDoc.currentQuestionIndex}`;
+    if (!sessionDoc?.questionStartedAt) return;
+    const key = `${activeSession.id}-${currentQuestionIndex ?? 'none'}-${sessionDoc?.questionTokens?.[currentQuestionIndex || 0] || 'notoken'}`;
     if (autoRevealKey.current === key) return;
     autoRevealKey.current = key;
     updateDoc(doc(db, quizSessionsPath, activeSession.id), { revealAnswer: true }).catch((err) =>
@@ -176,25 +211,30 @@ const LightningQuizModal = ({ onClose }) => {
   }, [db, activeSession, sessionDoc, timeLeft]);
 
   React.useEffect(() => {
-    if (!db || !activeSession || sessionDoc?.currentQuestionIndex === null || sessionDoc?.currentQuestionIndex === undefined) {
+    if (!db || !activeSession || currentQuestionIndex === null || currentQuestionIndex === undefined) {
       setAnswerCounts([]);
+      setRespondedCount(0);
       return undefined;
     }
     const answersRef = collection(db, `${quizSessionsPath}/${activeSession.id}/answers`);
-    const answersQuery = query(answersRef, where('questionIndex', '==', sessionDoc.currentQuestionIndex));
-    const tokenForQuestion = (sessionDoc.questionTokens || [])[sessionDoc.currentQuestionIndex];
+    const answersQuery = query(answersRef, where('questionIndex', '==', currentQuestionIndex));
+    const tokenForQuestion = sessionDoc?.questionTokens?.[currentQuestionIndex] || null;
     const unsub = onSnapshot(answersQuery, (snapshot) => {
       const counts = {};
+      const responders = new Set();
       snapshot.docs.forEach((docSnap) => {
         const optionIndex = docSnap.data().optionIndex;
         if (tokenForQuestion && docSnap.data().questionToken !== tokenForQuestion) return;
         counts[optionIndex] = (counts[optionIndex] || 0) + 1;
+        const dev = docSnap.data().deviceId || `anon-${docSnap.id}`;
+        responders.add(dev);
       });
       setAnswerCounts(
         Object.keys(counts)
           .sort((a, b) => Number(a) - Number(b))
           .map((key) => ({ optionIndex: Number(key), count: counts[key] })),
       );
+      setRespondedCount(responders.size);
     });
     return () => unsub();
   }, [db, activeSession, sessionDoc?.currentQuestionIndex]);
@@ -202,6 +242,13 @@ const LightningQuizModal = ({ onClose }) => {
   const handleChangeSetForm = (e) => {
     const { name, value } = e.target;
     setSetForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleChangeQuestionDuration = (val) => {
+    const num = Number(val);
+    if (Number.isNaN(num)) return;
+    const clamped = Math.max(5, Math.min(180, num));
+    setQuestionDuration(clamped);
   };
 
   const handleChangeDraft = (e) => {
@@ -335,6 +382,14 @@ const LightningQuizModal = ({ onClose }) => {
     if (typeof window === 'undefined') return '/quiz';
     return `${window.location.origin}/quiz`;
   }, []);
+  const joinLinkWithPin = React.useMemo(() => {
+    if (!activeSession) return joinBaseUrl;
+    return `${joinBaseUrl}?pin=${activeSession.sessionCode}`;
+  }, [activeSession, joinBaseUrl]);
+  const joinQrUrl = React.useMemo(() => {
+    if (!activeSession) return null;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(joinLinkWithPin)}&margin=0`;
+  }, [activeSession, joinLinkWithPin]);
 
   const handleNextQuestion = async () => {
     if (!db || !activeSession || !sessionDoc || !sessionDoc.questions) return;
@@ -362,7 +417,7 @@ const LightningQuizModal = ({ onClose }) => {
       currentQuestionIndex: nextIndex,
       questionStartedAt: serverTimestamp(),
       revealAnswer: false,
-      questionEndsAt: new Date(Date.now() + durationForQuestion * 1000),
+      questionEndsAt: null, // ใช้เวลาเริ่มต้น + duration ในฝั่งนักเรียนเพื่อลดปัญหา clock เพี้ยน
       questionDuration: durationForQuestion,
       questionTokens,
     });
@@ -420,7 +475,7 @@ const LightningQuizModal = ({ onClose }) => {
 
   const handleCopyJoinLink = () => {
     if (!activeSession) return;
-    const link = `${joinBaseUrl}?pin=${activeSession.sessionCode}`;
+    const link = joinLinkWithPin;
     if (!navigator?.clipboard) {
       setCopySuccess(false);
       return;
@@ -432,6 +487,27 @@ const LightningQuizModal = ({ onClose }) => {
         setTimeout(() => setCopySuccess(false), 2000);
       })
       .catch(() => setCopySuccess(false));
+  };
+
+  const handleShareLink = async () => {
+    if (!activeSession) return;
+    setShareError('');
+    const link = joinLinkWithPin;
+    if (navigator?.share) {
+      try {
+        await navigator.share({
+          title: `Lightning Quiz • PIN ${activeSession.sessionCode}`,
+          text: 'กดลิงก์นี้แล้วใส่ PIN เพื่อเข้าห้องตอบคำถาม',
+          url: link,
+        });
+      } catch (err) {
+        if (err?.name !== 'AbortError') {
+          setShareError('แชร์ไม่สำเร็จ ลองอีกครั้ง หรือคัดลอกลิงก์แทน');
+        }
+      }
+      return;
+    }
+    handleCopyJoinLink();
   };
 
     return (
@@ -782,32 +858,81 @@ const LightningQuizModal = ({ onClose }) => {
                           รีเซ็ต
                         </button>
                       </div>
-                      <div className="mt-3 flex items-center gap-3 rounded-xl border border-dashed border-white/15 bg-black/40 px-3 py-2 text-xs text-white/70">
-                        <div className="flex-1">
-                          <p>ลิงก์เข้าร่วม: <span className="font-semibold text-white">{joinBaseUrl}</span></p>
-                          {copySuccess && <p className="text-emerald-300">คัดลอกแล้ว!</p>}
+                      <div className="mt-3 space-y-2 rounded-xl border border-dashed border-white/15 bg-black/40 px-3 py-2 text-xs text-white/70">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="flex-1 break-all">
+                            ลิงก์เข้าร่วม: <span className="font-semibold text-white">{joinLinkWithPin}</span>
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCopyJoinLink}
+                              className="rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
+                            >
+                              คัดลอก
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleShareLink}
+                              className="flex items-center gap-1 rounded-lg border border-blue-300/40 bg-blue-500/10 px-3 py-1 text-white/90 transition hover:bg-blue-500/20"
+                            >
+                              <Icon name="Send" size={14} />
+                              แชร์
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowQr((prev) => !prev)}
+                              className="flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
+                            >
+                              <Icon name="QrCode" size={14} />
+                              QR
+                            </button>
+                          </div>
                         </div>
-                          <button
-                            type="button"
-                            onClick={handleCopyJoinLink}
-                            className="rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
-                          >
-                            คัดลอก
-                          </button>
-                        </div>
+                        {copySuccess && <p className="text-emerald-300">คัดลอกแล้ว!</p>}
+                        {shareError && <p className="text-amber-300">{shareError}</p>}
+                        {showQr && joinQrUrl && (
+                          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                            <img
+                              src={joinQrUrl}
+                              alt="QR สำหรับเข้าร่วม Lightning Quiz"
+                              className="h-28 w-28 rounded-lg border border-white/10 bg-white/70 p-1"
+                            />
+                            <div className="text-xs text-white/70">
+                              <p className="font-semibold text-white">สแกน QR เพื่อเข้าห้องทันที</p>
+                              <p>แชร์ให้นักเรียนเปิดกล้อง/แอปสแกนแล้วจะนำไปหน้ากรอก PIN อัตโนมัติ</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       </div>
                       ) : (
                         <div className="space-y-3">
                           <label className="text-xs text-white/70 flex items-center gap-2">
                             เวลา/คำถาม (วินาที)
-                            <input
-                              type="number"
-                              min="10"
-                              max="120"
-                              value={questionDuration}
-                              onChange={(e) => setQuestionDuration(Math.max(10, Math.min(120, parseInt(e.target.value || '20', 10))))}
-                              className="w-20 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-white text-sm focus:border-purple-300 focus:outline-none"
-                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleChangeQuestionDuration(questionDuration - 5)}
+                                className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={questionDuration}
+                                onChange={(e) => handleChangeQuestionDuration(e.target.value)}
+                                className="w-20 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-center text-white text-sm focus:border-purple-300 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleChangeQuestionDuration(questionDuration + 5)}
+                                className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+                              >
+                                +
+                              </button>
+                            </div>
                           </label>
                           <button
                             type="button"
@@ -872,7 +997,7 @@ const LightningQuizModal = ({ onClose }) => {
                               );
                             })}
                           </div>
-                        ) : sessionDoc?.currentQuestionIndex !== null && sessionDoc?.currentQuestionIndex !== undefined ? (
+                        ) : sessionDoc?.currentQuestionIndex !== null && sessionDoc?.currentQuestionIndex !== undefined && sessionDoc?.questions?.length ? (
                           <div className="space-y-3">
                             {(sessionDoc.questions?.[sessionDoc.currentQuestionIndex]?.options || []).map((opt, idx) => {
                               const count = answerCounts.find((c) => c.optionIndex === idx)?.count || 0;
@@ -915,6 +1040,11 @@ const LightningQuizModal = ({ onClose }) => {
                           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Scoreboard</p>
                           <p className="text-[11px] text-white/60">Top 5</p>
                         </div>
+                        {sessionDoc?.status === 'running' && (
+                          <p className="text-[11px] text-amber-200 mt-1">
+                            ตอบแล้ว {respondedCount}/{participantCount} คน
+                          </p>
+                        )}
                         {scoreboard.length === 0 ? (
                           <p className="text-xs text-white/60">ยังไม่มีคะแนน</p>
                         ) : (
