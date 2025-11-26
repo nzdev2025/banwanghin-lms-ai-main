@@ -52,6 +52,11 @@ const LightningQuizModal = ({ onClose }) => {
   const [shareError, setShareError] = React.useState('');
   const [showQr, setShowQr] = React.useState(false);
   const [respondedCount, setRespondedCount] = React.useState(0);
+  const [participants, setParticipants] = React.useState([]);
+  const [advanceMode, setAdvanceMode] = React.useState('manual');
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = React.useState(20);
+  const autoAdvanceRef = useRef(null);
+  const isAutoAdvance = advanceMode === 'auto';
   const currentQuestionIndex = sessionDoc?.currentQuestionIndex;
   const currentQuestion =
     sessionDoc?.questions && currentQuestionIndex !== null && currentQuestionIndex !== undefined && currentQuestionIndex >= 0
@@ -80,8 +85,8 @@ const LightningQuizModal = ({ onClose }) => {
   React.useEffect(() => {
     if (!selectedSet) return;
     const firstDuration = selectedSet.questions?.[0]?.duration || 20;
-    setQuestionDuration(firstDuration);
-  }, [selectedSet]);
+    setQuestionDuration(isAutoAdvance ? autoAdvanceSeconds : firstDuration);
+  }, [selectedSet, isAutoAdvance, autoAdvanceSeconds]);
 
   // Subscribe session doc and answers of current question when hosting
   // Subscribe session & participants
@@ -93,8 +98,10 @@ const LightningQuizModal = ({ onClose }) => {
       setScoreboard([]);
       setTimeLeft(null);
       setQuestionStats([]);
-    return undefined;
-  }
+      setParticipants([]);
+      autoAdvanceRef.current = null;
+      return undefined;
+    }
     const sessionRef = doc(db, `${quizSessionsPath}/${activeSession.id}`);
     const unsubSession = onSnapshot(sessionRef, (snap) => {
       if (snap.exists()) {
@@ -102,8 +109,15 @@ const LightningQuizModal = ({ onClose }) => {
       }
     });
     const participantsRef = collection(db, `${quizSessionsPath}/${activeSession.id}/participants`);
-    const unsubParticipants = onSnapshot(participantsRef, (snap) => {
+    const participantsQuery = query(participantsRef, orderBy('joinedAt', 'asc'));
+    const unsubParticipants = onSnapshot(participantsQuery, (snap) => {
       setParticipantCount(snap.size);
+      setParticipants(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })),
+      );
     });
     return () => {
       unsubSession();
@@ -115,6 +129,15 @@ const LightningQuizModal = ({ onClose }) => {
       setQuestionStats([]);
     };
   }, [db, activeSession]);
+
+  React.useEffect(() => {
+    if (sessionDoc?.advanceMode === 'auto' || sessionDoc?.advanceMode === 'manual') {
+      setAdvanceMode(sessionDoc.advanceMode);
+    }
+    if (sessionDoc?.autoAdvanceSeconds) {
+      setAutoAdvanceSeconds(sessionDoc.autoAdvanceSeconds);
+    }
+  }, [sessionDoc?.advanceMode, sessionDoc?.autoAdvanceSeconds]);
 
   // Subscribe answers for scoring/statistics based on latest questions
   React.useEffect(() => {
@@ -164,6 +187,7 @@ const LightningQuizModal = ({ onClose }) => {
     setRespondedCount(0);
     setIsRevealing(false);
     autoRevealKey.current = null;
+    autoAdvanceRef.current = null;
   }, [currentQuestionIndex]);
 
   // Countdown timer for current question (host side)
@@ -178,7 +202,11 @@ const LightningQuizModal = ({ onClose }) => {
         : sessionDoc?.questionStartedAt
           ? new Date(sessionDoc.questionStartedAt)
           : null;
-      const duration = sessionDoc?.questionDuration || currentQuestion?.duration || questionDuration || 20;
+      const duration =
+        sessionDoc?.questionDuration ||
+        currentQuestion?.duration ||
+        (isAutoAdvance ? autoAdvanceSeconds : questionDuration) ||
+        20;
       let endMs;
       if (start) {
         endMs = start.getTime() + duration * 1000;
@@ -194,7 +222,16 @@ const LightningQuizModal = ({ onClose }) => {
       setTimeLeft(Math.max(0, Math.floor(ms / 1000)));
     }, 500);
     return () => clearInterval(interval);
-  }, [sessionDoc?.questionStartedAt, sessionDoc?.questionEndsAt, currentQuestionIndex, sessionDoc?.questionDuration, questionDuration, currentQuestion?.duration]);
+  }, [
+    sessionDoc?.questionStartedAt,
+    sessionDoc?.questionEndsAt,
+    currentQuestionIndex,
+    sessionDoc?.questionDuration,
+    questionDuration,
+    currentQuestion?.duration,
+    isAutoAdvance,
+    autoAdvanceSeconds,
+  ]);
 
   // Auto-reveal when time is up
   React.useEffect(() => {
@@ -209,6 +246,23 @@ const LightningQuizModal = ({ onClose }) => {
       console.error('auto reveal failed', err),
     );
   }, [db, activeSession, sessionDoc, timeLeft]);
+
+  // Auto-advance to next question (optional)
+  React.useEffect(() => {
+    if (!isAutoAdvance || !db || !activeSession || !sessionDoc || sessionDoc.status !== 'running') return;
+    if (timeLeft === null) return;
+    const idx = currentQuestionIndex;
+    if (idx === null || idx === undefined) return;
+    if (!sessionDoc.revealAnswer || timeLeft !== 0) return;
+    const token = sessionDoc?.questionTokens?.[idx] || 'notoken';
+    const key = `${sessionDoc.id || activeSession.id}-${idx}-${token}`;
+    if (autoAdvanceRef.current === key) return;
+    autoAdvanceRef.current = key;
+    const t = setTimeout(() => {
+      handleNextQuestion();
+    }, 800);
+    return () => clearTimeout(t);
+  }, [isAutoAdvance, db, activeSession, sessionDoc, currentQuestionIndex, timeLeft]);
 
   React.useEffect(() => {
     if (!db || !activeSession || currentQuestionIndex === null || currentQuestionIndex === undefined) {
@@ -248,6 +302,14 @@ const LightningQuizModal = ({ onClose }) => {
     const num = Number(val);
     if (Number.isNaN(num)) return;
     const clamped = Math.max(5, Math.min(180, num));
+    setQuestionDuration(clamped);
+  };
+
+  const handleChangeAutoAdvanceSeconds = (val) => {
+    const num = Number(val);
+    if (Number.isNaN(num)) return;
+    const clamped = Math.max(5, Math.min(180, num));
+    setAutoAdvanceSeconds(clamped);
     setQuestionDuration(clamped);
   };
 
@@ -343,9 +405,10 @@ const LightningQuizModal = ({ onClose }) => {
     setError('');
     const code = generateSessionCode();
     try {
+      const baseDuration = isAutoAdvance ? autoAdvanceSeconds : questionDuration || 20;
       const normalizedQuestions = (selectedSet.questions || []).map((q) => ({
         ...q,
-        duration: q.duration || questionDuration || 20,
+        duration: isAutoAdvance ? baseDuration : q.duration || baseDuration,
       }));
       const docRef = await addDoc(collection(db, quizSessionsPath), {
         quizSetId: selectedSet.id,
@@ -357,8 +420,10 @@ const LightningQuizModal = ({ onClose }) => {
         currentQuestionIndex: null,
         questionTokens: new Array(normalizedQuestions.length).fill(null),
         startedAt: serverTimestamp(),
+        advanceMode,
+        autoAdvanceSeconds: baseDuration,
       });
-      setQuestionDuration(normalizedQuestions[0]?.duration || questionDuration || 20);
+      setQuestionDuration(baseDuration);
       setActiveSession({
         id: docRef.id,
         sessionCode: code,
@@ -376,6 +441,7 @@ const LightningQuizModal = ({ onClose }) => {
   const handleResetSession = () => {
     setActiveSession(null);
     setCopySuccess(false);
+    autoAdvanceRef.current = null;
   };
 
   const joinBaseUrl = React.useMemo(() => {
@@ -403,7 +469,10 @@ const LightningQuizModal = ({ onClose }) => {
       return;
     }
     const durationForQuestion =
-      sessionDoc.questions?.[nextIndex]?.duration || questionDuration || 20;
+      (isAutoAdvance ? autoAdvanceSeconds : null) ||
+      sessionDoc.questions?.[nextIndex]?.duration ||
+      questionDuration ||
+      20;
     const questionTokens = [...(sessionDoc.questionTokens || new Array(sessionDoc.questions.length).fill(null))];
     if (questionTokens.length < sessionDoc.questions.length) {
       questionTokens.length = sessionDoc.questions.length;
@@ -420,6 +489,8 @@ const LightningQuizModal = ({ onClose }) => {
       questionEndsAt: null, // ใช้เวลาเริ่มต้น + duration ในฝั่งนักเรียนเพื่อลดปัญหา clock เพี้ยน
       questionDuration: durationForQuestion,
       questionTokens,
+      advanceMode,
+      autoAdvanceSeconds: isAutoAdvance ? autoAdvanceSeconds : sessionDoc?.autoAdvanceSeconds || durationForQuestion,
     });
     logActivity('QUIZ_QUESTION_START', `เริ่มข้อที่ ${nextIndex + 1} ใน PIN ${activeSession.sessionCode}`);
   };
@@ -511,9 +582,9 @@ const LightningQuizModal = ({ onClose }) => {
   };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
         <div
-          className="flex w-full max-w-6xl flex-col rounded-3xl border border-white/15 bg-[#0b1327]/95 text-white shadow-2xl max-h-[90vh]"
+          className="flex h-[96vh] w-[98vw] max-w-[1500px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
           onClick={(e) => e.stopPropagation()}
         >
         <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
@@ -529,8 +600,8 @@ const LightningQuizModal = ({ onClose }) => {
           </button>
         </header>
 
-        <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 overflow-y-auto p-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="flex min-h-0 flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 overflow-hidden p-6 xl:grid-cols-[1.05fr_1.35fr]">
+          <section className="flex min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 shadow-inner shadow-black/30">
                   <div className="flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                       <Icon name="ArchiveRestore" size={18} className="text-purple-200" />
@@ -767,7 +838,7 @@ const LightningQuizModal = ({ onClose }) => {
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-black/40">
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-inner shadow-black/30">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Host Console</p>
               {selectedSet && <span className="text-xs text-white/60">{selectedSet.title}</span>}
@@ -814,137 +885,271 @@ const LightningQuizModal = ({ onClose }) => {
                     )}
                   </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-sm font-semibold text-white">เริ่มเกม</p>
-                      {activeSession ? (
-                    <div className="mt-3 space-y-3 text-white">
-                      <p className="text-4xl font-bold tracking-[0.3em] text-purple-200">{activeSession.sessionCode}</p>
-                      <p className="text-sm text-white/70">
-                        ให้เด็กเข้า <span className="font-semibold text-white">quiz.krukit</span> แล้วใส่ PIN ข้างต้น
-                      </p>
-                      <p className="text-xs text-white/60">เข้าร่วมแล้ว: {participantCount} คน</p>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={handleNextQuestion}
-                          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-2 text-sm font-semibold transition hover:opacity-90"
-                        >
-                          <Icon name={sessionDoc?.currentQuestionIndex === null ? 'PlayCircle' : 'StepForward'} size={18} />
-                          {sessionDoc?.currentQuestionIndex === null ? 'เริ่มถามคำถาม' : 'คำถามถัดไป'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRevealAnswer}
-                          disabled={sessionDoc?.revealAnswer || sessionDoc?.currentQuestionIndex === null}
-                          className="flex items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isRevealing ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Lightbulb" size={16} />}
-                          เฉลยคำตอบ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleEndSession}
-                          className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
-                        >
-                          <Icon name="StopCircle" size={16} />
-                          จบเกม
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleResetSession}
-                          className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
-                        >
-                          <Icon name="RotateCw" size={16} />
-                          รีเซ็ต
-                        </button>
-                      </div>
-                      <div className="mt-3 space-y-2 rounded-xl border border-dashed border-white/15 bg-black/40 px-3 py-2 text-xs text-white/70">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="flex-1 break-all">
-                            ลิงก์เข้าร่วม: <span className="font-semibold text-white">{joinLinkWithPin}</span>
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleCopyJoinLink}
-                              className="rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
-                            >
-                              คัดลอก
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleShareLink}
-                              className="flex items-center gap-1 rounded-lg border border-blue-300/40 bg-blue-500/10 px-3 py-1 text-white/90 transition hover:bg-blue-500/20"
-                            >
-                              <Icon name="Send" size={14} />
-                              แชร์
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowQr((prev) => !prev)}
-                              className="flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
-                            >
-                              <Icon name="QrCode" size={14} />
-                              QR
-                            </button>
-                          </div>
-                        </div>
-                        {copySuccess && <p className="text-emerald-300">คัดลอกแล้ว!</p>}
-                        {shareError && <p className="text-amber-300">{shareError}</p>}
-                        {showQr && joinQrUrl && (
-                          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                            <img
-                              src={joinQrUrl}
-                              alt="QR สำหรับเข้าร่วม Lightning Quiz"
-                              className="h-28 w-28 rounded-lg border border-white/10 bg-white/70 p-1"
-                            />
-                            <div className="text-xs text-white/70">
-                              <p className="font-semibold text-white">สแกน QR เพื่อเข้าห้องทันที</p>
-                              <p>แชร์ให้นักเรียนเปิดกล้อง/แอปสแกนแล้วจะนำไปหน้ากรอก PIN อัตโนมัติ</p>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-sm font-semibold text-white">ควบคุมการเล่น</p>
+                    {activeSession ? (
+                      <div className="mt-3 space-y-4 text-white">
+                        <div className="grid gap-3 lg:grid-cols-[1.15fr_1fr]">
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] uppercase tracking-[0.3em] text-white/60">Session PIN</p>
+                                <p className="text-4xl font-bold tracking-[0.3em] text-purple-200">{activeSession.sessionCode}</p>
+                                <p className="text-sm text-white/70">
+                                  ให้เด็กเข้า <span className="font-semibold text-white">quiz.krukit</span> แล้วใส่ PIN ข้างต้น
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right text-[11px] text-white/70">
+                                <p className="text-white">
+                                  สถานะ: <span className="font-semibold">{sessionDoc?.status || 'waiting'}</span>
+                                </p>
+                                <p>
+                                  เข้าร่วมแล้ว: <span className="font-semibold text-white">{participantCount}</span> คน
+                                </p>
+                                {sessionDoc?.status === 'running' && (
+                                  <p>ตอบแล้ว {respondedCount}/{participantCount} คน</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                              <button
+                                type="button"
+                                onClick={handleNextQuestion}
+                                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-3 py-2 text-sm font-semibold transition hover:opacity-90"
+                              >
+                                <Icon name={sessionDoc?.currentQuestionIndex === null ? 'PlayCircle' : 'StepForward'} size={18} />
+                                {sessionDoc?.currentQuestionIndex === null ? 'เริ่มถามคำถาม' : 'คำถามถัดไป'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleRevealAnswer}
+                                disabled={sessionDoc?.revealAnswer || sessionDoc?.currentQuestionIndex === null}
+                                className="flex items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isRevealing ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Lightbulb" size={16} />}
+                                เฉลยคำตอบ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleEndSession}
+                                className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                              >
+                                <Icon name="StopCircle" size={16} />
+                                จบเกม
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleResetSession}
+                                className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                              >
+                                <Icon name="RotateCw" size={16} />
+                                รีเซ็ต
+                              </button>
                             </div>
                           </div>
-                        )}
-                      </div>
-                      </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <label className="text-xs text-white/70 flex items-center gap-2">
-                            เวลา/คำถาม (วินาที)
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <div className="flex items-center justify-between text-xs text-white/70">
+                              <span className="uppercase tracking-[0.25em]">ผู้เล่นในห้อง</span>
+                              <span>{participants.length} คน</span>
+                            </div>
+                            {participants.length === 0 ? (
+                              <p className="mt-2 text-[11px] text-white/60">รอผู้เล่นเข้าร่วม...</p>
+                            ) : (
+                              <div className="mt-2 max-h-44 space-y-1 overflow-auto pr-1">
+                                {participants.slice(0, 12).map((p) => (
+                                  <div
+                                    key={p.id}
+                                    className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80"
+                                  >
+                                    <span className="truncate font-semibold">{p.alias || 'ไม่ระบุชื่อ'}</span>
+                                    <span className="text-white/50">{p.lastAnswerAt ? 'ตอบแล้ว' : 'ยังไม่ตอบ'}</span>
+                                  </div>
+                                ))}
+                                {participants.length > 12 && (
+                                  <p className="pt-1 text-[11px] text-white/60">+ {participants.length - 12} คน</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-dashed border-white/15 bg-black/40 px-3 py-2 text-xs text-white/70">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="flex-1 break-all">
+                              ลิงก์เข้าร่วม: <span className="font-semibold text-white">{joinLinkWithPin}</span>
+                            </p>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => handleChangeQuestionDuration(questionDuration - 5)}
-                                className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+                                onClick={handleCopyJoinLink}
+                                className="rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
                               >
-                                -
+                                คัดลอก
                               </button>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={questionDuration}
-                                onChange={(e) => handleChangeQuestionDuration(e.target.value)}
-                                className="w-20 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-center text-white text-sm focus:border-purple-300 focus:outline-none"
-                              />
                               <button
                                 type="button"
-                                onClick={() => handleChangeQuestionDuration(questionDuration + 5)}
-                                className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+                                onClick={handleShareLink}
+                                className="flex items-center gap-1 rounded-lg border border-blue-300/40 bg-blue-500/10 px-3 py-1 text-white/90 transition hover:bg-blue-500/20"
                               >
-                                +
+                                <Icon name="Send" size={14} />
+                                แชร์
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowQr((prev) => !prev)}
+                                className="flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1 text-white/80 transition hover:bg-white/10"
+                              >
+                                <Icon name="QrCode" size={14} />
+                                QR
                               </button>
                             </div>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={handleStartSession}
-                            disabled={isStartingSession}
-                            className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-3 text-sm font-semibold uppercase tracking-[0.3em] transition hover:opacity-90 disabled:opacity-60"
-                          >
-                            {isStartingSession ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="Bolt" size={18} />}
-                            {isStartingSession ? 'กำลังเปิด' : 'สร้าง PIN & เริ่ม'}
-                          </button>
+                          </div>
+                          {copySuccess && <p className="text-emerald-300">คัดลอกแล้ว!</p>}
+                          {shareError && <p className="text-amber-300">{shareError}</p>}
+                          {showQr && joinQrUrl && (
+                            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                              <img
+                                src={joinQrUrl}
+                                alt="QR สำหรับเข้าร่วม Lightning Quiz"
+                                className="h-28 w-28 rounded-lg border border-white/10 bg-white/70 p-1"
+                              />
+                              <div className="text-xs text-white/70">
+                                <p className="font-semibold text-white">สแกน QR เพื่อเข้าห้องทันที</p>
+                                <p>แชร์ให้นักเรียนเปิดกล้อง/แอปสแกนแล้วจะนำไปหน้ากรอก PIN อัตโนมัติ</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
+
+                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-white/80">
+                          <p className="text-[11px] uppercase tracking-[0.25em] text-white/60">โหมดเดินเกม</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAdvanceMode('manual')}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                !isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                              }`}
+                            >
+                              กดเองทีละข้อ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAdvanceMode('auto')}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                              }`}
+                            >
+                              อัตโนมัติ
+                            </button>
+                            <div
+                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                                isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
+                              }`}
+                            >
+                              <span>เวลาต่อข้อ</span>
+                              <input
+                                type="number"
+                                min="5"
+                                max="180"
+                                value={autoAdvanceSeconds}
+                                onChange={(e) => handleChangeAutoAdvanceSeconds(e.target.value)}
+                                disabled={!isAutoAdvance}
+                                className="w-16 rounded-md border border-white/15 bg-black/40 px-2 py-1 text-center text-white focus:border-amber-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                              />
+                              <span className="text-white/60">วินาที</span>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[11px] text-white/60">
+                            เลือกว่าจะกดเองทีละข้อ หรือให้ระบบเดินคำถาม-เฉลยอัตโนมัติจนจบชุด (อัตโนมัติจะเดินต่อเองหลังครูกดเริ่ม)
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs text-white/80">
+                          <p className="text-[11px] uppercase tracking-[0.25em] text-white/60">โหมดเดินเกม</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAdvanceMode('manual')}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                !isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                              }`}
+                            >
+                              กดเองทีละข้อ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAdvanceMode('auto')}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                                isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                              }`}
+                            >
+                              อัตโนมัติ
+                            </button>
+                            <div
+                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                                isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
+                              }`}
+                            >
+                              <span>เวลาต่อข้อ</span>
+                              <input
+                                type="number"
+                                min="5"
+                                max="180"
+                                value={autoAdvanceSeconds}
+                                onChange={(e) => handleChangeAutoAdvanceSeconds(e.target.value)}
+                                disabled={!isAutoAdvance}
+                                className="w-16 rounded-md border border-white/15 bg-black/40 px-2 py-1 text-center text-white focus:border-amber-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                              />
+                              <span className="text-white/60">วินาที</span>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[11px] text-white/60">
+                            ค่าเริ่มต้นจะนำไปกำหนดเวลาของทุกข้อเมื่อเริ่มเกม (อัตโนมัติจะเดินต่อเองหลังครูกดเริ่ม)
+                          </p>
+                        </div>
+                        <label className="text-xs text-white/70 flex items-center gap-2">
+                          เวลา/คำถาม (วินาที)
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleChangeQuestionDuration(questionDuration - 5)}
+                              disabled={isAutoAdvance}
+                              className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={questionDuration}
+                              onChange={(e) => handleChangeQuestionDuration(e.target.value)}
+                              disabled={isAutoAdvance}
+                              className="w-20 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-center text-white text-sm focus:border-purple-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleChangeQuestionDuration(questionDuration + 5)}
+                              disabled={isAutoAdvance}
+                              className="h-8 w-8 rounded-lg border border-white/15 bg-white/5 text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleStartSession}
+                          disabled={isStartingSession}
+                          className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 py-3 text-sm font-semibold uppercase tracking-[0.3em] transition hover:opacity-90 disabled:opacity-60"
+                        >
+                          {isStartingSession ? <Icon name="Loader2" className="animate-spin" size={18} /> : <Icon name="Bolt" size={18} />}
+                          {isStartingSession ? 'กำลังเปิด' : 'สร้าง PIN & เริ่ม'}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-1 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -1094,6 +1299,30 @@ const LightningQuizModal = ({ onClose }) => {
                             </div>
                           </div>
                         )}
+
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-3 mt-3">
+                          <div className="flex items-center justify-between text-xs text-white/70">
+                            <span className="uppercase tracking-[0.25em]">ผู้เล่นในห้อง</span>
+                            <span>{participants.length} คน</span>
+                          </div>
+                          {participants.length === 0 ? (
+                            <p className="mt-2 text-[11px] text-white/60">รอผู้เล่นเข้าร่วม...</p>
+                          ) : (
+                            <div className="mt-2 max-h-40 overflow-auto space-y-1">
+                              {participants.map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-white/75"
+                                >
+                                  <span className="truncate font-semibold">{p.alias || 'ไม่ระบุชื่อ'}</span>
+                                  <span className="text-white/50">
+                                    {p.lastAnswerAt ? 'ตอบแล้ว' : 'ยังไม่ตอบ'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
