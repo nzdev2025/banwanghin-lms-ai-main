@@ -196,7 +196,7 @@ const LightningQuizJoinView = () => {
       setScoreboard(ranking);
     });
     return () => unsub();
-  }, [db, sessionDetail?.id, sessionDetail?.questions]);
+  }, [db, sessionDetail?.id, sessionDetail?.questions, sessionDetail?.questionTokens]);
 
   React.useEffect(() => {
     if (!db || !sessionDetail?.id || !participantDocId) return undefined;
@@ -221,7 +221,7 @@ const LightningQuizJoinView = () => {
       if (ans && Number(ans.optionIndex) === Number(q.answerIndex)) correct += 1;
     });
     return { correct, total, points: correct * POINTS_PER_CORRECT };
-  }, [sessionDetail?.questions, myAnswers]);
+  }, [sessionDetail?.questions, sessionDetail?.questionTokens, myAnswers]);
 
   const handleConfirmAlias = async () => {
     if (!db || !sessionDetail || !alias.trim()) return;
@@ -488,11 +488,11 @@ const LightningQuizJoinView = () => {
                     </div>
                   </div>
 
-                  {scoreboard.length > 0 && (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/80">
-                      <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-3">Top 3</p>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {scoreboard.slice(0, 3).map((item, idx) => (
+                      {scoreboard.length > 0 && (
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/80">
+                          <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-3">Top 3</p>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            {scoreboard.slice(0, 3).map((item, idx) => (
                           <div
                             key={item.alias + idx}
                             className="rounded-xl border border-white/10 bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#0b1224] p-3 text-center shadow-[0_12px_30px_-22px_rgba(0,0,0,0.9)]"

@@ -25,9 +25,9 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
     subject: '',
     topic: '',
     focus: '',
-    numQuestions: 5,
+    numQuestions: '5',
     difficulty: 'medium',
-    optionCount: 4,
+    optionCount: '4',
   });
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -35,23 +35,34 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'numQuestions' || name === 'optionCount') {
+      if (value === '') {
+        setForm((prev) => ({ ...prev, [name]: '' }));
+        return;
+      }
+      const digits = String(value ?? '').replace(/\D/g, '').replace(/^0+/, '');
+      setForm((prev) => ({ ...prev, [name]: digits === '' ? '' : digits }));
+      return;
+    }
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'numQuestions' || name === 'optionCount' ? Number(value) : value,
+      [name]: value,
     }));
   };
 
   const buildPrompt = () => {
+    const numQuestions = Math.max(3, Math.min(20, Number(form.numQuestions || 5)));
+    const optionCount = Math.max(2, Math.min(5, Number(form.optionCount || 4)));
     return `
-คุณเป็นผู้เชี่ยวชาญสร้างข้อสอบแบบปรนัย (multiple choice) สำหรับเด็กไทย
+  คุณเป็นผู้เชี่ยวชาญสร้างข้อสอบแบบปรนัย (multiple choice) สำหรับเด็กไทย
 จงสร้างชุดคำถามที่สั้น กระชับ ตรงหัวข้อ และมีเฉลย
 
 เงื่อนไข:
 - วิชา/บริบท: ${form.subject || 'ทั่วไป'}
 - หัวข้อหลัก: ${form.topic || 'ไม่ระบุ'}
 - ประเด็นเน้น: ${form.focus || 'ไม่ระบุ'}
-- จำนวนข้อ: ${form.numQuestions}
-- จำนวนตัวเลือกต่อข้อ: ${form.optionCount} ตัวเลือก
+  - จำนวนข้อ: ${numQuestions}
+  - จำนวนตัวเลือกต่อข้อ: ${optionCount} ตัวเลือก
 - ระดับ: ${form.difficulty} (easy/medium/hard)
 - ภาษา: ภาษาไทยทั้งหมด
 - รูปแบบผลลัพธ์ JSON:
@@ -103,13 +114,14 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
 
   const handleApply = () => {
     if (!result) return;
+    const optionCount = Math.max(2, Math.min(5, Number(form.optionCount || 4)));
     onApply({
       title: result.title || form.topic || 'AI Quiz Set',
       topic: result.topic || form.topic,
       instructions: `สร้างด้วย AI | วิชา ${form.subject} | ระดับ ${form.difficulty}`,
       questions: result.questions.map((q) => ({
         text: q.text,
-        options: q.options,
+        options: (q.options || []).slice(0, optionCount),
         answerIndex: Number(q.answerIndex) || 0,
       })),
     });

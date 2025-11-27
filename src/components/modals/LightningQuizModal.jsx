@@ -19,6 +19,18 @@ const defaultQuestionDraft = {
   duration: 20,
 };
 
+const sanitizeDigits = (val) => {
+  const digits = String(val ?? '').replace(/\D/g, '');
+  const trimmed = digits.replace(/^0+/, '');
+  return trimmed === '' ? '' : trimmed;
+};
+
+const clampDuration = (val, fallback = 20, min = 5, max = 180) => {
+  const num = Number(val);
+  if (Number.isNaN(num) || num <= 0) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(num)));
+};
+
 const LightningQuizModal = ({ onClose }) => {
   const [quizSets, setQuizSets] = React.useState([]);
   const [isLoadingSets, setIsLoadingSets] = React.useState(true);
@@ -45,6 +57,7 @@ const LightningQuizModal = ({ onClose }) => {
   const POINTS_PER_CORRECT = 10;
   const [questionDuration, setQuestionDuration] = React.useState(20);
   const [questionStats, setQuestionStats] = React.useState([]);
+  const [finalizedResults, setFinalizedResults] = React.useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = React.useState(false);
   const [isStartingSession, setIsStartingSession] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -85,7 +98,7 @@ const LightningQuizModal = ({ onClose }) => {
   React.useEffect(() => {
     if (!selectedSet) return;
     const firstDuration = selectedSet.questions?.[0]?.duration || 20;
-    setQuestionDuration(isAutoAdvance ? autoAdvanceSeconds : firstDuration);
+    setQuestionDuration(isAutoAdvance ? clampDuration(autoAdvanceSeconds, firstDuration) : firstDuration);
   }, [selectedSet, isAutoAdvance, autoAdvanceSeconds]);
 
   // Subscribe session doc and answers of current question when hosting
@@ -98,6 +111,7 @@ const LightningQuizModal = ({ onClose }) => {
       setScoreboard([]);
       setTimeLeft(null);
       setQuestionStats([]);
+      setFinalizedResults(false);
       setParticipants([]);
       autoAdvanceRef.current = null;
       return undefined;
@@ -106,6 +120,7 @@ const LightningQuizModal = ({ onClose }) => {
     const unsubSession = onSnapshot(sessionRef, (snap) => {
       if (snap.exists()) {
         setSessionDoc({ id: snap.id, ...snap.data() });
+        if (snap.data()?.finalizedResults) setFinalizedResults(true);
       }
     });
     const participantsRef = collection(db, `${quizSessionsPath}/${activeSession.id}/participants`);
@@ -139,10 +154,9 @@ const LightningQuizModal = ({ onClose }) => {
     }
   }, [sessionDoc?.advanceMode, sessionDoc?.autoAdvanceSeconds]);
 
-  // Subscribe answers for scoring/statistics based on latest questions
+  // Subscribe answers for scoring/statistics based on latest questions (keep after game ends)
   React.useEffect(() => {
     if (!db || !activeSession || !sessionDoc?.questions) return undefined;
-    if (currentQuestionIndex === null || currentQuestionIndex === undefined) return undefined;
     const answersAllRef = collection(db, `${quizSessionsPath}/${activeSession.id}/answers`);
     const unsubAnswersAll = onSnapshot(answersAllRef, (snap) => {
       const scores = {};
@@ -175,10 +189,26 @@ const LightningQuizModal = ({ onClose }) => {
     return () => {
       unsubAnswersAll();
       setAnswerCounts([]);
-      setScoreboard([]);
       setQuestionStats([]);
+      if (!activeSession) {
+        setScoreboard([]);
+      }
     };
-  }, [db, activeSession, sessionDoc?.questions]);
+  }, [db, activeSession?.id, sessionDoc?.questions, sessionDoc?.questionTokens]);
+
+  // Persist final scoreboard/stats to session doc once when completed (for cross-device reliability)
+  React.useEffect(() => {
+    if (!db || !sessionDoc || sessionDoc.status !== 'completed') return;
+    if (finalizedResults) return;
+    const hasScores = scoreboard && scoreboard.length > 0;
+    const hasStats = questionStats && questionStats.length > 0;
+    if (!hasScores && !hasStats) return;
+    const payload = {};
+    if (hasScores) payload.finalScoreboard = scoreboard;
+    if (hasStats) payload.finalQuestionStats = questionStats;
+    payload.finalizedResults = true;
+    updateDoc(doc(db, quizSessionsPath, sessionDoc.id), payload).catch(() => {});
+  }, [db, sessionDoc?.id, sessionDoc?.status, scoreboard, questionStats, finalizedResults]);
 
   // Reset timers/counts whenเปลี่ยนคำถาม
   React.useEffect(() => {
@@ -299,25 +329,42 @@ const LightningQuizModal = ({ onClose }) => {
   };
 
   const handleChangeQuestionDuration = (val) => {
-    const num = Number(val);
-    if (Number.isNaN(num)) return;
-    const clamped = Math.max(5, Math.min(180, num));
-    setQuestionDuration(clamped);
+    if (val === '') {
+      setQuestionDuration('');
+      return;
+    }
+    const digits = sanitizeDigits(val);
+    setQuestionDuration(digits === '' ? '' : digits);
   };
 
   const handleChangeAutoAdvanceSeconds = (val) => {
-    const num = Number(val);
-    if (Number.isNaN(num)) return;
-    const clamped = Math.max(5, Math.min(180, num));
-    setAutoAdvanceSeconds(clamped);
-    setQuestionDuration(clamped);
+    if (val === '') {
+      setAutoAdvanceSeconds('');
+      setQuestionDuration('');
+      return;
+    }
+    const digits = sanitizeDigits(val);
+    setAutoAdvanceSeconds(digits === '' ? '' : digits);
+    setQuestionDuration(digits === '' ? '' : digits);
   };
 
   const handleChangeDraft = (e) => {
     const { name, value } = e.target;
     if (name === 'duration') {
-      const next = Math.max(10, Math.min(120, Number(value || 20)));
-      setQuestionDraft((prev) => ({ ...prev, duration: next }));
+      if (value === '') {
+        setQuestionDraft((prev) => ({ ...prev, duration: '' }));
+        return;
+      }
+      const digits = sanitizeDigits(value);
+      setQuestionDraft((prev) => ({ ...prev, duration: digits === '' ? '' : digits }));
+      return;
+    }
+    if (name === 'answerIndex') {
+      const digits = sanitizeDigits(value);
+      setQuestionDraft((prev) => ({
+        ...prev,
+        answerIndex: digits === '' ? '' : Number(digits),
+      }));
       return;
     }
     setQuestionDraft((prev) => ({ ...prev, [name]: value }));
@@ -405,10 +452,10 @@ const LightningQuizModal = ({ onClose }) => {
     setError('');
     const code = generateSessionCode();
     try {
-      const baseDuration = isAutoAdvance ? autoAdvanceSeconds : questionDuration || 20;
+      const baseDuration = clampDuration(isAutoAdvance ? autoAdvanceSeconds : questionDuration, 20);
       const normalizedQuestions = (selectedSet.questions || []).map((q) => ({
         ...q,
-        duration: isAutoAdvance ? baseDuration : q.duration || baseDuration,
+        duration: isAutoAdvance ? baseDuration : clampDuration(q.duration, baseDuration),
       }));
       const docRef = await addDoc(collection(db, quizSessionsPath), {
         quizSetId: selectedSet.id,
@@ -468,11 +515,10 @@ const LightningQuizModal = ({ onClose }) => {
       logActivity('QUIZ_SESSION_END', `จบเกม PIN ${activeSession.sessionCode}`);
       return;
     }
-    const durationForQuestion =
-      (isAutoAdvance ? autoAdvanceSeconds : null) ||
-      sessionDoc.questions?.[nextIndex]?.duration ||
-      questionDuration ||
-      20;
+    const durationForQuestion = clampDuration(
+      isAutoAdvance ? autoAdvanceSeconds : sessionDoc.questions?.[nextIndex]?.duration || questionDuration,
+      sessionDoc.questions?.[nextIndex]?.duration || questionDuration || 20,
+    );
     const questionTokens = [...(sessionDoc.questionTokens || new Array(sessionDoc.questions.length).fill(null))];
     if (questionTokens.length < sessionDoc.questions.length) {
       questionTokens.length = sessionDoc.questions.length;
@@ -600,241 +646,241 @@ const LightningQuizModal = ({ onClose }) => {
           </button>
         </header>
 
-        <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 overflow-hidden p-6 xl:grid-cols-[1.05fr_1.35fr]">
-          <section className="flex min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5 shadow-inner shadow-black/30">
-                  <div className="flex items-center justify-between">
-                    <h3 className="flex items-center gap-2 text-lg font-semibold">
-                      <Icon name="ArchiveRestore" size={18} className="text-purple-200" />
-                      คลังชุดคำถาม
-                    </h3>
+        <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 overflow-hidden p-4 sm:p-6 xl:grid-cols-[1.05fr_1.35fr]">
+          <section className="flex min-h-0 flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 shadow-inner shadow-black/30">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Icon name="ArchiveRestore" size={18} className="text-purple-200" />
+                คลังชุดคำถาม
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCreatingSet((prev) => !prev)}
+                className="flex items-center gap-2 rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/10"
+              >
+                <Icon name={creatingSet ? 'ChevronUp' : 'Plus'} size={16} />
+                {creatingSet ? 'ซ่อนแบบฟอร์ม' : 'สร้างชุดใหม่'}
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
+              {creatingSet && (
+                <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <button
                       type="button"
-                      onClick={() => setCreatingSet((prev) => !prev)}
-                      className="flex items-center gap-2 rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/90 transition hover:bg-white/10"
+                      onClick={() => setIsAiModalOpen(true)}
+                      className="flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
                     >
-                      <Icon name={creatingSet ? 'ChevronUp' : 'Plus'} size={16} />
-                      {creatingSet ? 'ซ่อนแบบฟอร์ม' : 'สร้างชุดใหม่'}
+                      <Icon name="Sparkles" size={14} />
+                      ให้ AI สร้างชุดคำถาม
                     </button>
+                    {selectedSet && <span className="text-[11px] text-white/60">หรือกรอกเองด้านล่าง</span>}
                   </div>
-
-            {creatingSet && (
-              <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAiModalOpen(true)}
-                    className="flex items-center gap-2 rounded-xl border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
-                  >
-                    <Icon name="Sparkles" size={14} />
-                    ให้ AI สร้างชุดคำถาม
-                  </button>
-                  {selectedSet && (
-                    <span className="text-[11px] text-white/60">หรือกรอกเองด้านล่าง</span>
-                  )}
-                </div>
-                <div className="grid gap-3">
-                  <div>
-                    <label className="text-white/70">ชื่อชุด</label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={setForm.title}
-                      onChange={handleChangeSetForm}
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
-                      placeholder="เช่น วิทย์ ป.5 - ระบบนิเวศ"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/70">หัวข้อ/คำอธิบาย</label>
-                    <input
-                      type="text"
-                      name="topic"
-                      value={setForm.topic}
-                      onChange={handleChangeSetForm}
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
-                      placeholder="สั้นๆ ว่าชุดนี้เกี่ยวกับอะไร"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-white/70">คำแนะนำ</label>
-                    <textarea
-                      name="instructions"
-                      value={setForm.instructions}
-                      onChange={handleChangeSetForm}
-                      rows={2}
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
-                      placeholder="แจ้งนักเรียนควรรู้อะไรเป็นพิเศษ"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/60">เพิ่มคำถาม</p>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <input
-                      type="text"
-                      name="text"
-                      value={questionDraft.text}
-                      onChange={handleChangeDraft}
-                      placeholder="คำถาม"
-                      className="w-full rounded-lg border border-white/10 bg-black/30 p-2 text-white focus:border-purple-300 focus:outline-none"
-                    />
-                    {['optionA', 'optionB', 'optionC', 'optionD'].map((key, idx) => (
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="text-white/70">ชื่อชุด</label>
                       <input
-                        key={key}
                         type="text"
-                        name={key}
-                        value={questionDraft[key]}
+                        name="title"
+                        value={setForm.title}
+                        onChange={handleChangeSetForm}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
+                        placeholder="เช่น วิทย์ ป.5 - ระบบนิเวศ"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/70">หัวข้อ/คำอธิบาย</label>
+                      <input
+                        type="text"
+                        name="topic"
+                        value={setForm.topic}
+                        onChange={handleChangeSetForm}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
+                        placeholder="สั้นๆ ว่าชุดนี้เกี่ยวกับอะไร"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/70">คำแนะนำ</label>
+                      <textarea
+                        name="instructions"
+                        value={setForm.instructions}
+                        onChange={handleChangeSetForm}
+                        rows={2}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 p-2 text-white focus:border-purple-300 focus:outline-none"
+                        placeholder="แจ้งนักเรียนควรรู้อะไรเป็นพิเศษ"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/60">เพิ่มคำถาม</p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <input
+                        type="text"
+                        name="text"
+                        value={questionDraft.text}
                         onChange={handleChangeDraft}
-                        placeholder={`ตัวเลือกที่ ${idx + 1}`}
+                        placeholder="คำถาม"
                         className="w-full rounded-lg border border-white/10 bg-black/30 p-2 text-white focus:border-purple-300 focus:outline-none"
                       />
-                    ))}
-                    <label className="flex items-center gap-2 text-white/70">
-                      เฉลย (0-3)
-                      <input
-                        type="number"
-                        min="0"
-                        max="3"
-                        name="answerIndex"
-                        value={questionDraft.answerIndex}
-                        onChange={handleChangeDraft}
-                        className="w-20 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-white/70">
-                      เวลา/ข้อ (วินาที)
-                      <input
-                        type="number"
-                        min="10"
-                        max="120"
-                        name="duration"
-                        value={questionDraft.duration}
-                        onChange={handleChangeDraft}
-                        className="w-24 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleAddQuestion}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 py-2 text-sm font-semibold transition hover:opacity-90"
-                    >
-                      <Icon name="PlusCircle" size={16} />
-                      เพิ่มไปยังชุด
-                    </button>
-                  </div>
-                  {setForm.questions.length > 0 && (
-                    <ul className="mt-3 max-h-32 overflow-auto text-white/80">
-                      {setForm.questions.map((question, index) => (
-                        <li key={index} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs">
-                          <span className="line-clamp-1">
-                            {index + 1}. {question.text}
-                          </span>
-                          <button onClick={() => handleRemoveQuestion(index)} className="text-rose-300 transition hover:text-rose-200">
-                            <Icon name="Trash2" size={14} />
-                          </button>
-                        </li>
+                      {['optionA', 'optionB', 'optionC', 'optionD'].map((key, idx) => (
+                        <input
+                          key={key}
+                          type="text"
+                          name={key}
+                          value={questionDraft[key]}
+                          onChange={handleChangeDraft}
+                          placeholder={`ตัวเลือกที่ ${idx + 1}`}
+                          className="w-full rounded-lg border border-white/10 bg-black/30 p-2 text-white focus:border-purple-300 focus:outline-none"
+                        />
                       ))}
-                    </ul>
-                  )}
-                </div>
+                      <label className="flex flex-wrap items-center gap-2 text-white/70">
+                        เฉลย (0-3)
+                        <input
+                          type="number"
+                          min="0"
+                          max="3"
+                          name="answerIndex"
+                          value={questionDraft.answerIndex}
+                          onChange={handleChangeDraft}
+                          className="w-20 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
+                        />
+                      </label>
+                      <label className="flex flex-wrap items-center gap-2 text-white/70">
+                        เวลา/ข้อ (วินาที)
+                        <input
+                          type="number"
+                          min="10"
+                          max="120"
+                          name="duration"
+                          value={questionDraft.duration}
+                          onChange={handleChangeDraft}
+                          className="w-24 rounded-lg border border-white/10 bg-black/30 p-1 text-center text-white focus:border-purple-300 focus:outline-none"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddQuestion}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 py-2 text-sm font-semibold transition hover:opacity-90"
+                      >
+                        <Icon name="PlusCircle" size={16} />
+                        เพิ่มไปยังชุด
+                      </button>
+                    </div>
+                    {setForm.questions.length > 0 && (
+                      <ul className="mt-3 max-h-32 overflow-auto text-white/80">
+                        {setForm.questions.map((question, index) => (
+                          <li key={index} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs">
+                            <span className="line-clamp-1">
+                              {index + 1}. {question.text}
+                            </span>
+                            <button onClick={() => handleRemoveQuestion(index)} className="text-rose-300 transition hover:text-rose-200">
+                              <Icon name="Trash2" size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
-                <div className="mt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSaveSet}
-                    disabled={isSavingSet || !setForm.title.trim() || setForm.questions.length === 0}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/90 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/30"
-                  >
-                    {isSavingSet ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Save" size={16} />}
-                    {editingSetId ? 'อัปเดตชุดคำถาม' : 'บันทึกชุดคำถาม'}
-                  </button>
-                  {editingSetId && (
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingSetId(null);
-                        setSetForm({ title: '', topic: '', instructions: '', questions: [] });
-                        setQuestionDraft(defaultQuestionDraft);
-                      }}
-                      className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                      onClick={handleSaveSet}
+                      disabled={isSavingSet || !setForm.title.trim() || setForm.questions.length === 0}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/90 py-2.5 text-sm font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/30"
                     >
-                      ยกเลิกแก้ไข
+                      {isSavingSet ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Save" size={16} />}
+                      {editingSetId ? 'อัปเดตชุดคำถาม' : 'บันทึกชุดคำถาม'}
                     </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto rounded-2xl border border-white/10 bg-black/30">
-              {isLoadingSets ? (
-                <div className="flex h-48 items-center justify-center">
-                  <Icon name="Loader2" className="animate-spin text-purple-300" size={32} />
-                </div>
-              ) : quizSets.length === 0 ? (
-                <div className="flex h-48 flex-col items-center justify-center gap-2 text-sm text-white/60">
-                  <Icon name="Inbox" size={28} />
-                  ยังไม่มีชุดคำถาม
-                </div>
-              ) : (
-                <ul className="divide-y divide-white/5 text-sm">
-                  {quizSets.map((set) => {
-                    const isActive = selectedSetId === set.id;
-                    return (
-                      <li
-                        key={set.id}
-                        className={`px-4 py-3 transition hover:bg-white/10 ${isActive ? 'bg-white/10' : 'cursor-pointer'}`}
-                        onClick={() => setSelectedSetId(set.id)}
+                    {editingSetId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSetId(null);
+                          setSetForm({ title: '', topic: '', instructions: '', questions: [] });
+                          setQuestionDraft(defaultQuestionDraft);
+                        }}
+                        className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-white">{set.title}</p>
-                            <p className="text-xs text-white/70">{set.topic || 'ไม่มีคำอธิบาย'} · {set.questionCount || set.questions?.length || 0} ข้อ</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCreatingSet(true);
-                                setEditingSetId(set.id);
-                                setSetForm({
-                                  title: set.title || '',
-                                  topic: set.topic || '',
-                                  instructions: set.instructions || '',
-                                  questions: (set.questions || []).map((q) => ({ ...q, duration: q.duration || 20 })),
-                                });
-                                setQuestionDraft(defaultQuestionDraft);
-                              }}
-                              className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10"
-                            >
-                              แก้ไข
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!window.confirm('ยืนยันลบชุดคำถามนี้?')) return;
-                                try {
-                                  await deleteDoc(doc(db, quizSetsPath, set.id));
-                                  if (selectedSetId === set.id) setSelectedSetId(null);
-                                  if (editingSetId === set.id) setEditingSetId(null);
-                                } catch (err) {
-                                  console.error('delete set failed', err);
-                                  alert('ลบไม่สำเร็จ');
-                                }
-                              }}
-                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 transition hover:bg-rose-500/20"
-                            >
-                              ลบ
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                        ยกเลิกแก้ไข
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
+
+              <div className="rounded-2xl border border-white/10 bg-black/30">
+                {isLoadingSets ? (
+                  <div className="flex h-48 items-center justify-center">
+                    <Icon name="Loader2" className="animate-spin text-purple-300" size={32} />
+                  </div>
+                ) : quizSets.length === 0 ? (
+                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-sm text-white/60">
+                    <Icon name="Inbox" size={28} />
+                    ยังไม่มีชุดคำถาม
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-white/5 text-sm">
+                    {quizSets.map((set) => {
+                      const isActive = selectedSetId === set.id;
+                      return (
+                        <li
+                          key={set.id}
+                          className={`px-4 py-3 transition hover:bg-white/10 ${isActive ? 'bg-white/10' : 'cursor-pointer'}`}
+                          onClick={() => setSelectedSetId(set.id)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-semibold text-white">{set.title}</p>
+                              <p className="text-xs text-white/70">{set.topic || 'ไม่มีคำอธิบาย'} · {set.questionCount || set.questions?.length || 0} ข้อ</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCreatingSet(true);
+                                  setEditingSetId(set.id);
+                                  setSetForm({
+                                    title: set.title || '',
+                                    topic: set.topic || '',
+                                    instructions: set.instructions || '',
+                                    questions: (set.questions || []).map((q) => ({ ...q, duration: q.duration || 20 })),
+                                  });
+                                  setQuestionDraft(defaultQuestionDraft);
+                                }}
+                                className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-white/80 transition hover:bg-white/10"
+                              >
+                                แก้ไข
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!window.confirm('ยืนยันลบชุดคำถามนี้?')) return;
+                                  try {
+                                    await deleteDoc(doc(db, quizSetsPath, set.id));
+                                    if (selectedSetId === set.id) setSelectedSetId(null);
+                                    if (editingSetId === set.id) setEditingSetId(null);
+                                  } catch (err) {
+                                    console.error('delete set failed', err);
+                                    alert('ลบไม่สำเร็จ');
+                                  }
+                                }}
+                                className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 transition hover:bg-rose-500/20"
+                              >
+                                ลบ
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           </section>
 
@@ -1157,19 +1203,19 @@ const LightningQuizModal = ({ onClose }) => {
                       <p className="text-sm font-semibold text-white">
                         {sessionDoc?.status === 'completed' ? 'สรุปผลหลังเกม' : 'Live Scoreboard'}
                       </p>
-                      {sessionDoc?.status === 'running' && timeLeft !== null && (
-                        <span className="text-[11px] text-amber-200">เหลือเวลา {timeLeft}s</span>
-                      )}
-                    </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                        {sessionDoc?.status === 'running' && timeLeft !== null && (
+                          <span className="text-[11px] text-amber-200">เหลือเวลา {timeLeft}s</span>
+                        )}
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl border border-white/10 bg-black/25 p-3">
                         <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/60">
                           {sessionDoc?.status === 'completed' ? 'สรุปคำตอบแต่ละข้อ' : 'คำตอบปัจจุบัน'}
                         </p>
                         {sessionDoc?.status === 'completed' ? (
                           <div className="space-y-3 max-h-64 overflow-auto pr-1">
                             {sessionDoc?.questions?.map((q, idx) => {
-                              const counts = questionStats?.[idx] || {};
+                              const counts = (sessionDoc?.finalQuestionStats || questionStats)?.[idx] || {};
                               const total = Object.values(counts).reduce((sum, v) => sum + v, 0);
                               return (
                                 <div key={idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
@@ -1250,12 +1296,12 @@ const LightningQuizModal = ({ onClose }) => {
                             ตอบแล้ว {respondedCount}/{participantCount} คน
                           </p>
                         )}
-                        {scoreboard.length === 0 ? (
+                        {(sessionDoc?.finalScoreboard || scoreboard).length === 0 ? (
                           <p className="text-xs text-white/60">ยังไม่มีคะแนน</p>
                         ) : (
                           <div className="space-y-3">
                             <ul className="space-y-2">
-                              {scoreboard.slice(0, 5).map((item, idx) => (
+                              {(sessionDoc?.finalScoreboard || scoreboard).slice(0, 5).map((item, idx) => (
                                 <li
                                   key={item.alias + idx}
                                   className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80"
@@ -1278,7 +1324,7 @@ const LightningQuizModal = ({ onClose }) => {
                               <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-white/60">ภาพรวมคะแนน (Top 5)</p>
                               <div className="h-56">
                                 <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={scoreboard.slice(0, 5)} margin={{ top: 5, right: 10, left: -15, bottom: 20 }}>
+                                  <BarChart data={(sessionDoc?.finalScoreboard || scoreboard).slice(0, 5)} margin={{ top: 5, right: 10, left: -15, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                                     <XAxis
                                       dataKey="alias"
