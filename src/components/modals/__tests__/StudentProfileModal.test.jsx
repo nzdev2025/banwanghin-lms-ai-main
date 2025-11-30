@@ -141,6 +141,12 @@ describe('StudentProfileModal (UI smoke tests)', () => {
     expect(screen.getByText(/งานที่ส่งแล้ว/)).toBeInTheDocument();
   });
 
+  it('renders overview hero icon and decorative art', () => {
+    renderModal();
+    expect(screen.getByTestId('overview-hero-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('overview-hero-art')).toBeInTheDocument();
+  });
+
   it('saves edited health data via Firestore', async () => {
     const user = userEvent.setup();
     renderModal();
