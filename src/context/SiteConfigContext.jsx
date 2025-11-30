@@ -3,7 +3,8 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { config } from '../config';
 
-const SiteConfigContext = createContext();
+// eslint-disable-next-line react-refresh/only-export-components
+export const SiteConfigContext = createContext();
 
 const defaultConfig = {
     siteTitle: 'KruKit AI',
