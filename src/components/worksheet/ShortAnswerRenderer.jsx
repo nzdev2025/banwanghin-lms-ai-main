@@ -1,7 +1,7 @@
 // src/components/worksheet/ShortAnswerRenderer.jsx
 import React from 'react';
 
-const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[\.\)]\s*/, '').trim();
+const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[.)]\s*/, '').trim();
 
 const ShortAnswerRenderer = ({ data, sectionNumber }) => {
   const questions = Array.isArray(data.questions) ? data.questions : [];

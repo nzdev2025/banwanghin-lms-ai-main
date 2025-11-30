@@ -113,7 +113,6 @@ export const useStudentPerformanceData = (subjects = []) => {
     cachePromise
       .then((data) => setState({ ...data, loading: false, error: null }))
       .catch((error) => setState((s) => ({ ...s, loading: false, error })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjects]);
 
   return state;

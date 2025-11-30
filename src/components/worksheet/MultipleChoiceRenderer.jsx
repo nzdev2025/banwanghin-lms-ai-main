@@ -1,7 +1,7 @@
 // src/components/worksheet/MultipleChoiceRenderer.jsx
 import React from 'react';
 
-const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[\.\)]\s*/, '').trim();
+const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[.)]\s*/, '').trim();
 
 const parseOption = (option = '', optIndex) => {
   const cleaned = option.trim();

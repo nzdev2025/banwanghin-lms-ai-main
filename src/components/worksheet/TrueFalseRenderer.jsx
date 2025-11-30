@@ -1,7 +1,7 @@
 // src/components/worksheet/TrueFalseRenderer.jsx
 import React from 'react';
 
-const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[\.\)]\s*/, '').trim();
+const stripLeadingNumber = (text = '') => text.replace(/^\s*\d+[.)]\s*/, '').trim();
 
 const TrueFalseRenderer = ({ data, sectionNumber }) => {
   const questions = Array.isArray(data.questions) ? data.questions : [];
