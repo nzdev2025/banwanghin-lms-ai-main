@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Icon from '../icons/Icon';
 import { handleLogin, handleSignUp } from '../firebase/firebase';
+import { useSiteConfig } from '../context/SiteConfigContext';
 
 const featureHighlights = [
   'จัดเก็บข้อมูลนักเรียน รายวิชา และคะแนนอย่างเป็นระบบ',
@@ -9,6 +10,7 @@ const featureHighlights = [
 ];
 
 const LoginView = () => {
+  const { siteConfig } = useSiteConfig();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -80,7 +82,7 @@ const LoginView = () => {
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-white/80">
               <Icon name="Sparkles" size={16} />
             </span>
-            Banwanghin Krukit AI by Wasin Suksuwan
+            {siteConfig.footerText}
           </div>
           <div className="space-y-6">
             <h1 className="text-[2.4rem] font-semibold tracking-tight text-white sm:text-[2.5rem]">
@@ -113,7 +115,7 @@ const LoginView = () => {
               <p className="text-xs uppercase tracking-[0.35em] text-white/60">
                 Sign in to continue
               </p>
-              <h2 className="mt-3 text-2xl font-semibold">ยินดีต้อนรับสู่ KruKit</h2>
+              <h2 className="mt-3 text-2xl font-semibold">ยินดีต้อนรับสู่ {siteConfig.siteTitle}</h2>
             </header>
 
             <form onSubmit={onLogin} className="space-y-6">

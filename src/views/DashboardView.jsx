@@ -4,10 +4,12 @@ import { db, appId } from '../firebase/firebase';
 import { grades } from '../constants/data';
 import OverallAnalytics from '../components/analytics/OverallAnalytics';
 import { useApp } from '../context/AppContext';
+import { useSiteConfig } from '../context/SiteConfigContext';
 import Icon from '../icons/Icon';
 
 const DashboardView = () => {
   const { subjects, openModal } = useApp();
+  const { siteConfig } = useSiteConfig();
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
 
   // Search State
@@ -83,6 +85,23 @@ const DashboardView = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden gap-6">
+      {/* Announcement Banner */}
+      {siteConfig.announcement?.enabled && siteConfig.announcement?.message && (
+        <div className={`relative z-20 flex items-start gap-3 rounded-xl border p-4 ${siteConfig.announcement.type === 'error' ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' :
+            siteConfig.announcement.type === 'warning' ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' :
+              siteConfig.announcement.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
+                'border-sky-500/30 bg-sky-500/10 text-sky-200'
+          }`}>
+          <Icon name={
+            siteConfig.announcement.type === 'error' ? 'AlertCircle' :
+              siteConfig.announcement.type === 'warning' ? 'AlertTriangle' :
+                siteConfig.announcement.type === 'success' ? 'CheckCircle' :
+                  'Info'
+          } size={20} className="mt-0.5 shrink-0" />
+          <p className="text-sm font-medium leading-relaxed">{siteConfig.announcement.message}</p>
+        </div>
+      )}
+
       {/* Search Bar Section */}
       <div className="relative z-20" ref={searchRef}>
         <div className="relative">
@@ -123,8 +142,8 @@ const DashboardView = () => {
                   className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/5"
                 >
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${student.gender === 'female'
-                      ? 'from-pink-500 to-rose-500'
-                      : 'from-blue-500 to-cyan-500'
+                    ? 'from-pink-500 to-rose-500'
+                    : 'from-blue-500 to-cyan-500'
                     } text-white shadow-lg`}>
                     <span className="text-sm font-bold">{student.studentNumber || '?'}</span>
                   </div>

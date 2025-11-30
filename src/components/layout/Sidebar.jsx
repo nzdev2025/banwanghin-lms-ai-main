@@ -12,16 +12,19 @@ import {
   MessageCircle,
 } from 'lucide-react';
 
+import { useSiteConfig } from '../../context/SiteConfigContext';
+
 const Sidebar = () => {
+  const { siteConfig } = useSiteConfig();
   const navItems = [
     { icon: House, name: 'แดชบอร์ด', path: '/' },
     { icon: Book, name: 'รายวิชา', path: '/subjects' },
-    { icon: Calendar, name: 'ปฏิทินงาน/สอบ', path: '/calendar' },
+    { icon: Calendar, name: 'ปฏิทินงาน/สอบ', path: '/calendar', feature: 'calendar' },
     { icon: Users, name: 'นักเรียน', path: '/students' },
-    { icon: FilePlus, name: 'AI ช่วยสร้าง', path: '/tools' },
+    { icon: FilePlus, name: 'AI ช่วยสร้าง', path: '/tools', feature: 'tools' },
     { icon: Briefcase, name: 'เครื่องมือช่วยสอน', path: '/classroom-tools' },
     { icon: Settings, name: 'ตั้งค่า', path: '/settings' },
-  ];
+  ].filter(item => !item.feature || siteConfig.featureFlags?.[item.feature] !== false);
 
   const supportItems = [
     { icon: MessageCircle, label: 'Community', href: '#' },
@@ -32,12 +35,12 @@ const Sidebar = () => {
     <aside className="hidden lg:flex w-[270px] flex-col border-r border-white/10 bg-[#0f1424]/80 text-slate-200 backdrop-blur-xl">
       <div className="px-6 pt-8 pb-10">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-sky-500 text-xl font-semibold text-[#0f1424]">
-            AI
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${siteConfig.primaryColor} text-xl font-semibold text-[#0f1424]`}>
+            {siteConfig.logoText}
           </div>
           <div>
-            <p className="text-lg font-bold text-white">KruKit AI</p>
-            <p className="text-xs text-slate-400">โรงเรียนบ้านวังหิน</p>
+            <p className="text-lg font-bold text-white">{siteConfig.siteTitle}</p>
+            <p className="text-xs text-slate-400">{siteConfig.schoolName}</p>
           </div>
         </div>
       </div>
@@ -102,7 +105,7 @@ const Sidebar = () => {
 
           <div className="mt-auto px-2 pb-8 pt-6">
             <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-purple-500/20 via-indigo-500/15 to-blue-500/20 p-4">
-              <p className="text-sm font-semibold text-white">พัฒนาโดย Wasin Suksuwan</p>
+              <p className="text-sm font-semibold text-white">พัฒนาโดย {siteConfig.developerName}</p>
               <p className="mt-1 text-xs text-slate-300">
                 พบปัญหาการใช้งานหรือมีคำแนะนำสามารถติดต่อได้ทาง Nzdev
               </p>

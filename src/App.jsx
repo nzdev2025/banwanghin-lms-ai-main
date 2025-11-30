@@ -5,6 +5,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { AppContextProvider, useApp } from './context/AppContext';
+import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext';
 
 // Layout
 import Header from './components/layout/Header';
@@ -44,6 +45,7 @@ import Pp5GeneratorModal from './components/modals/Pp5GeneratorModal';
 import AILessonPlanGeneratorModal from './components/modals/AILessonPlanGeneratorModal';
 import ResetAssignmentsModal from './components/modals/ResetAssignmentsModal';
 import StudentProgressModal from './components/modals/StudentProgressModal';
+import SiteEditorModal from './components/modals/SiteEditorModal';
 
 // Loading Component
 const PageLoader = () => (
@@ -106,6 +108,7 @@ function AppContent() {
 
   const AppLayout = () => {
     const currentYear = new Date().getFullYear();
+    const { siteConfig } = useSiteConfig();
 
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-[#1b1f38] via-[#121629] to-[#0b1020] text-slate-100">
@@ -122,12 +125,12 @@ function AppContent() {
                 </div>
                 <footer className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-6 text-sm text-slate-300 backdrop-blur-lg sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    © {currentYear} Banwanghin KruKit AI by Wasin Suksuwan. สงวนลิขสิทธิ์
+                    © {currentYear} {siteConfig.footerText}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-500">
-                    <span>เวอร์ชัน 5.0</span>
+                    <span>เวอร์ชัน {siteConfig.version}</span>
                     <span className="hidden sm:block">•</span>
-                    <span>พัฒนาโดย Wasin Sukswan ICT Talent Connext ED</span>
+                    <span>พัฒนาโดย {siteConfig.developerName} ICT Talent Connext ED</span>
                   </div>
                 </footer>
               </div>
@@ -222,6 +225,8 @@ function AppContent() {
             return <Pp5GeneratorModal key={index} subjects={subjects} onClose={closeModal} />;
           case 'resetAssignments':
             return <ResetAssignmentsModal key={index} subjects={subjects} onClose={closeModal} />;
+          case 'siteEditor':
+            return <SiteEditorModal key={index} onClose={closeModal} />;
           default:
             return null;
         }
@@ -233,7 +238,9 @@ function AppContent() {
 function App() {
   return (
     <AppContextProvider>
-      <AppContent />
+      <SiteConfigProvider>
+        <AppContent />
+      </SiteConfigProvider>
     </AppContextProvider>
   );
 }

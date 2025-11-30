@@ -2,7 +2,7 @@ import React from 'react';
 import { UserCog, BellRing, BookUp, Eraser } from 'lucide-react';
 
 const SettingsCard = ({ icon, title, description, onClick }) => (
-  <div 
+  <div
     className="bg-gray-800/50 p-6 rounded-lg border border-white/10 hover:bg-gray-700/50 cursor-pointer transition-colors"
     onClick={onClick}
   >
@@ -42,6 +42,12 @@ const SettingsView = ({ openModal }) => {
       title: 'ล้างงานและคะแนน',
       description: 'ล้างหัวข้องานและคะแนนทั้งชั้น/วิชาเมื่อขึ้นเทอมใหม่',
       action: () => openModal('resetAssignments'),
+    },
+    {
+      icon: <UserCog size={24} className="text-purple-400" />,
+      title: 'ปรับแต่งเว็บไซต์',
+      description: 'แก้ไขชื่อเว็บ, โลโก้, และข้อความ Footer',
+      action: () => openModal('siteEditor'),
     },
   ];
 
