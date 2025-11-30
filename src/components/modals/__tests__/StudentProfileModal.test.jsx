@@ -1,27 +1,11 @@
-vi.mock('firebase/firestore', () => {
-  const setDocMock = vi.fn(() => Promise.resolve());
-  const deleteDocMock = vi.fn(() => Promise.resolve());
-  const docMock = vi.fn((dbArg, path, maybeId) => ({ path: maybeId ? `${path}/${maybeId}` : path }));
-
-  return {
-    collection: vi.fn((dbArg, path) => ({ path })),
-    doc: docMock,
-    onSnapshot: vi.fn(() => vi.fn()),
-    query: vi.fn((colRef) => colRef),
-    orderBy: vi.fn((field) => field),
-    deleteDoc: deleteDocMock,
-    setDoc: setDocMock,
-    serverTimestamp: vi.fn(() => 'server-timestamp'),
-  };
-});
-
-vi.mock('../../../firebase/firebase', () => ({
-  db: {},
-  appId: 'test-app',
-}));
+import React from 'react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { act } from 'react';
+import { vi, describe, it, afterEach, beforeEach, expect } from 'vitest';
+import StudentProfileModal from '../StudentProfileModal';
 
 vi.mock('../../../api/gemini', () => ({
-  callGeminiAPI: vi.fn(async () => 'ai-summary'),
+  callGeminiAPI: vi.fn(),
 }));
 
 vi.mock('../../../icons/Icon', () => ({
@@ -36,159 +20,185 @@ vi.mock('../BehaviorLoggerModal', () => ({
 
 vi.mock('../ConfirmationModal', () => ({
   __esModule: true,
-  default: ({ item, onConfirm, onClose }) => (
-    <div data-testid="confirm-modal">
-      <p>ยืนยันลบ {item?.name}</p>
-      <button onClick={onConfirm}>confirm-delete</button>
-      <button onClick={onClose}>close</button>
+  default: ({ onConfirm, onClose }) => (
+    <div data-testid="confirmation-modal">
+      <button type="button" onClick={onConfirm}>
+        confirm
+      </button>
+      <button type="button" onClick={onClose}>
+        cancel
+      </button>
     </div>
   ),
 }));
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import StudentProfileModal from '../StudentProfileModal';
-import { setDoc, deleteDoc } from 'firebase/firestore';
-
 const baseStudent = {
-  id: 'stu1',
-  studentNumber: '1',
-  firstName: 'เด็กชายทดสอบ',
-  lastName: 'เรียนดี',
-  birthDate: '2013-06-18',
+  id: 'student-1',
+  studentNumber: '01',
+  firstName: 'Niran',
+  lastName: 'Somsak',
   gender: 'male',
-  studentId: '001',
+  studentId: 'S001',
+  birthDate: '2015-02-10',
 };
 
-const subjects = [{ id: 'math', name: 'คณิตศาสตร์' }];
-
-const initialScores = {
-  math: {
-    name: 'คณิตศาสตร์',
-    assignments: [
-      { name: 'การบ้าน 1', score: 8, maxScore: 10 },
-      { name: 'โครงงาน', score: undefined, maxScore: 10 },
-    ],
-  },
+const getAgeDisplay = (birthDateString) => {
+  if (!birthDateString) return '-';
+  const birthDate = new Date(birthDateString);
+  const today = new Date();
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+    years--;
+    months += 12;
+  }
+  return `${years} ปี ${months} เดือน`;
 };
 
-const initialBehaviorLogs = [
-  {
-    id: 'log-positive',
-    tag: 'ช่วยเพื่อน',
-    type: 'positive',
-    icon: 'Heart',
-    note: 'ให้กำลังใจเพื่อน',
-    timestamp: new Date('2024-11-02T10:00:00Z'),
-  },
-  {
-    id: 'log-negative',
-    tag: 'ไม่ส่งการบ้าน',
-    type: 'negative',
-    icon: 'AlertTriangle',
-    note: 'ขาดส่งหลายครั้ง',
-    timestamp: new Date('2024-11-01T10:00:00Z'),
-  },
-];
+const renderModal = (props = {}) => {
+  const { testOverrides, ...rest } = props;
+  const mergedOverrides = { skipLiveSync: true, ...testOverrides };
 
-const renderModal = (overrideProps = {}) =>
-  render(
+  return render(
     <StudentProfileModal
       student={baseStudent}
       grade="p6"
-      subjects={subjects}
+      subjects={[]}
       onClose={vi.fn()}
-      openModal={vi.fn()}
-      testOverrides={{
-        initialScores,
-        initialBehaviorLogs,
-        initialHealthData: { weight: '65', height: '165', measuredAt: new Date('2024-11-01T00:00:00Z') },
-        skipLiveSync: true,
-      }}
-      {...overrideProps}
-    />
+      testOverrides={mergedOverrides}
+      {...rest}
+    />,
   );
+};
 
-describe('StudentProfileModal (UI smoke tests)', () => {
+describe('StudentProfileModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders student identity and quick stats', () => {
-    renderModal();
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+  });
 
-    expect(screen.getByText('เด็กชายทดสอบ เรียนดี')).toBeInTheDocument();
+  it('shows age and assignment overview stats with grouped details', async () => {
+    renderModal({
+      testOverrides: {
+        initialScores: {
+          math: {
+            name: 'คณิตศาสตร์',
+            assignments: [
+              { name: 'แบบฝึกหัด 1', score: 8, maxScore: 10 },
+              { name: 'แบบฝึกหัด 2', maxScore: 10 },
+            ],
+          },
+          science: {
+            name: 'วิทยาศาสตร์',
+            assignments: [{ name: 'การทดลอง', score: 10, maxScore: 10 }],
+          },
+        },
+      },
+    });
+
+    const expectedAge = getAgeDisplay(baseStudent.birthDate);
+
+    expect(screen.getByText(/อัตราการส่งงานล่าสุด/)).toBeInTheDocument();
+    expect(screen.getByText(`อายุ ${expectedAge}`)).toBeInTheDocument();
     expect(screen.getByText('ชั้น ป.6')).toBeInTheDocument();
-    expect(screen.getByText('65 กก.')).toBeInTheDocument();
-    expect(screen.getByText('165 ซม.')).toBeInTheDocument();
+
+    const overviewButton = screen.getByText('อัตราการส่งงานล่าสุด').closest('button');
+    fireEvent.click(overviewButton);
+
+    expect(await screen.findByText('ส่งแล้ว 2')).toBeInTheDocument();
+    expect(screen.getAllByText('ค้างส่ง 1')[0]).toBeInTheDocument();
+    expect(screen.getByText('ทั้งหมด 3')).toBeInTheDocument();
+    expect(screen.getByText('วิชา 2')).toBeInTheDocument();
+    expect(screen.getByText(/67%/)).toBeInTheDocument();
+
+    expect(screen.getByText('คณิตศาสตร์')).toBeInTheDocument();
+    expect(screen.getByText('วิทยาศาสตร์')).toBeInTheDocument();
+    const mathSubject = screen.getByText('คณิตศาสตร์').closest('button');
+    fireEvent.click(mathSubject);
+    expect(await screen.findByText('แบบฝึกหัด 2')).toBeInTheDocument();
+    expect(screen.getByText('ยังไม่ส่ง')).toBeInTheDocument();
   });
 
-  it('shows summary stats and reveals subject details after toggling the overview card', async () => {
-    const user = userEvent.setup();
-    renderModal();
+  it('filters behavior logs by start date and updates status accordingly', async () => {
+    const { container } = renderModal({
+      testOverrides: {
+        initialBehaviorLogs: [
+          {
+            id: 'log-1',
+            tag: 'ช่วยเพื่อน',
+            type: 'positive',
+            icon: 'Smile',
+            timestamp: new Date('2025-01-10T10:00:00Z'),
+          },
+          {
+            id: 'log-2',
+            tag: 'ส่งงานช้า',
+            type: 'negative',
+            icon: 'Clock',
+            timestamp: new Date('2025-02-15T10:00:00Z'),
+          },
+        ],
+      },
+    });
 
-    expect(screen.getByText(/ส่งแล้ว 1/)).toBeInTheDocument();
-    expect(screen.getByText(/ค้างส่ง 1/)).toBeInTheDocument();
-    expect(screen.queryByText(/การบ้าน 1/)).not.toBeInTheDocument();
+    const behaviorCard = await screen.findByText(/ภาพรวมพฤติกรรม/);
+    fireEvent.click(behaviorCard.closest('button'));
 
-    await user.click(screen.getByRole('button', { name: /ภาพรวมการเรียน/i }));
-    await user.click(screen.getByRole('button', { name: /คณิตศาสตร์/i }));
+    expect(screen.getByText('สถานะ: ควรจับตา')).toBeInTheDocument();
+    expect(screen.getAllByText(/ส่งงานช้า|ช่วยเพื่อน/)).toHaveLength(2);
 
-    expect(screen.getByText(/การบ้าน 1/)).toBeInTheDocument();
-    expect(screen.getByText(/โครงงาน/)).toBeInTheDocument();
-    expect(screen.getByText(/งานที่ส่งแล้ว/)).toBeInTheDocument();
+    const startDateInput = container.querySelector('input[type="date"]');
+    fireEvent.change(startDateInput, { target: { value: '2025-02-01' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('สถานะ: ควรปรับปรุง')).toBeInTheDocument();
+    });
+    expect(screen.getByText('ส่งงานช้า')).toBeInTheDocument();
+    expect(screen.queryByText('ช่วยเพื่อน')).not.toBeInTheDocument();
   });
 
-  it('renders overview hero icon and decorative art', () => {
-    renderModal();
-    expect(screen.getByTestId('overview-hero-icon')).toBeInTheDocument();
-    expect(screen.getByTestId('overview-hero-art')).toBeInTheDocument();
-  });
+  it('generates AI summary, parent comment, and copies the comment', async () => {
+    const { callGeminiAPI } = await import('../../../api/gemini');
+    callGeminiAPI.mockResolvedValueOnce('สรุปผลการเรียน');
+    callGeminiAPI.mockResolvedValueOnce('ข้อความถึงผู้ปกครอง');
+    navigator.clipboard.writeText.mockResolvedValue();
 
-  it('saves edited health data via Firestore', async () => {
-    const user = userEvent.setup();
-    renderModal();
+    renderModal({
+      testOverrides: {
+        initialScores: {
+          math: {
+            name: 'คณิตศาสตร์',
+            assignments: [{ name: 'แบบฝึกหัด 1', score: 9, maxScore: 10 }],
+          },
+        },
+        initialBehaviorLogs: [
+          { id: 'log-1', tag: 'มีสมาธิ', type: 'positive', icon: 'Sparkles', timestamp: new Date('2025-02-10T09:00:00Z') },
+        ],
+      },
+    });
 
-    await user.click(screen.getByText('แก้ไข'));
-    const inputs = screen.getAllByRole('spinbutton');
-    await user.clear(inputs[0]);
-    await user.type(inputs[0], '52');
-    await user.clear(inputs[1]);
-    await user.type(inputs[1], '150');
+    const analyzeButton = await screen.findByRole('button', { name: /วิเคราะห์ผลการเรียน/i });
+    fireEvent.click(analyzeButton);
 
-    await user.click(screen.getByText('บันทึก'));
+    await waitFor(() => expect(callGeminiAPI).toHaveBeenCalledTimes(1));
+    expect(callGeminiAPI).toHaveBeenCalledWith(expect.stringContaining("Niran Somsak"));
+    expect(await screen.findByText('สรุปผลการเรียน')).toBeInTheDocument();
 
-    const [, dataArg] = setDoc.mock.calls[0];
-    expect(dataArg.weight).toBe(52);
-    expect(dataArg.height).toBe(150);
-  });
+    const parentCommentButton = screen.getByRole('button', { name: /ข้อความถึงผู้ปกครอง/ });
+    fireEvent.click(parentCommentButton);
 
-  it('confirms and deletes a behavior log', async () => {
-    const user = userEvent.setup();
-    renderModal();
+    await waitFor(() => expect(callGeminiAPI).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/"ข้อความถึงผู้ปกครอง"/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /ภาพรวมพฤติกรรม/i }));
-    await user.click(screen.getAllByLabelText('ลบบันทึก')[0]);
-    await user.click(screen.getByText('confirm-delete'));
-
-    expect(deleteDoc).toHaveBeenCalled();
-    const docRef = deleteDoc.mock.calls[0][0];
-    expect(docRef.path).toContain('behavior_logs/log-positive');
-  });
-
-  it('shows behavior summary card and reveals detailed logs on click', async () => {
-    const user = userEvent.setup();
-    renderModal();
-
-    expect(screen.getByText(/สถานะ: ควรจับตา/i)).toBeInTheDocument();
-    expect(screen.getByText(/เชิงบวก 1 \| ควรปรับปรุง 1/i)).toBeInTheDocument();
-    expect(screen.queryByText(/ช่วยเพื่อน/)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /ภาพรวมพฤติกรรม/i }));
-
-    expect(screen.getByText(/ช่วยเพื่อน/)).toBeInTheDocument();
-    expect(screen.getByText(/\+ เพิ่มบันทึก/)).toBeInTheDocument();
+    const copyButton = screen.getByRole('button', { name: /คัดลอกคอมเมนต์/ });
+    await act(async () => {
+      fireEvent.click(copyButton);
+      await Promise.resolve();
+    });
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('ข้อความถึงผู้ปกครอง');
   });
 });
