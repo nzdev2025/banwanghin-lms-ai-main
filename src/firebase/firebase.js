@@ -95,12 +95,20 @@ let auth;
 if (firebaseConfigIsValid) {
   try {
     app = initializeApp(firebaseConfig);
-    // Force long polling for flaky / restricted networks (เช่น Wi-Fi โรงเรียนที่บล็อก WebSocket)
-    // disable fetch streams to maximise compatibility onมือถือ
-    db = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
+    // Prefer auto-detection of the best transport first; fall back to forced long polling if needed.
+    const firestoreSettings = {
+      experimentalAutoDetectLongPolling: true,
       useFetchStreams: false,
-    });
+    };
+    try {
+      db = initializeFirestore(app, firestoreSettings);
+    } catch (firestoreInitError) {
+      console.warn('Primary Firestore init failed, retrying with forced long polling', firestoreInitError);
+      db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        useFetchStreams: false,
+      });
+    }
     auth = getAuth(app);
   } catch (e) {
     console.error('Firebase initialization error:', e);

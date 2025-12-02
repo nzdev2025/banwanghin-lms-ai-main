@@ -197,10 +197,32 @@ const HealthRecordModal = ({ onClose }) => {
                             </button>
                         ))}
                     </div>
-                     <div className="flex items-center gap-2 bg-gray-900/50 p-1 rounded-lg">
-                        <span className="text-sm font-bold text-gray-300 px-2">ปีการศึกษา {currentYear}</span>
-                        <button onClick={() => setTerm('term1')} className={`px-3 py-1 text-xs rounded ${term === 'term1' ? 'bg-rose-500' : ''}`}>เทอม 1</button>
-                        <button onClick={() => setTerm('term2')} className={`px-3 py-1 text-xs rounded ${term === 'term2' ? 'bg-rose-500' : ''}`}>เทอม 2</button>
+                     <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-rose-300/30 shadow-inner shadow-rose-500/10">
+                        <span className="text-sm font-bold text-gray-200 px-2">ปีการศึกษา {currentYear}</span>
+                        <button
+                            type="button"
+                            data-testid="health-term1"
+                            onClick={() => setTerm('term1')}
+                            className={`px-3 py-1 text-xs rounded-full border transition ${
+                                term === 'term1'
+                                    ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
+                                    : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
+                            }`}
+                        >
+                            เทอม 1
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="health-term2"
+                            onClick={() => setTerm('term2')}
+                            className={`px-3 py-1 text-xs rounded-full border transition ${
+                                term === 'term2'
+                                    ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
+                                    : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
+                            }`}
+                        >
+                            เทอม 2
+                        </button>
                     </div>
                 </div>
 

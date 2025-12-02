@@ -249,9 +249,14 @@ const AttendanceChecker = () => {
                     <select 
                         value={selectedGrade}
                         onChange={e => setSelectedGrade(e.target.value)}
-                        className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white"
+                        data-testid="grade-select"
+                        className="bg-slate-900 border border-white/20 rounded-xl px-3 py-2 text-slate-100 shadow-inner focus:border-emerald-300 focus:outline-none"
                     >
-                        {grades.map((g, i) => <option key={g} value={g}>ประถมศึกษาปีที่ {i+1}</option>)}
+                        {grades.map((g, i) => (
+                            <option key={g} value={g} className="bg-slate-900 text-slate-100">
+                                ประถมศึกษาปีที่ {i+1}
+                            </option>
+                        ))}
                     </select>
                     <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-2 py-1">
                         <button onClick={handleExportCsv} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">

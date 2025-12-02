@@ -5,6 +5,7 @@ import { collection, collectionGroup, getDocs, query, where, orderBy } from 'fir
 import { db, appId } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 import { grades } from '../../constants/data';
+import { buildPrintableSavingsReport } from './savingsReportPrint';
 
 const SavingsReportModal = ({ onClose }) => {
     const [reportType, setReportType] = useState('daily');
@@ -109,7 +110,20 @@ const SavingsReportModal = ({ onClose }) => {
         });
     };
     
-    const handlePrint = () => { window.print(); };
+    const handlePrint = () => {
+        const html = buildPrintableSavingsReport({
+            transactions,
+            summary,
+            selectedDate,
+            reportType,
+        });
+        const w = window.open('', '_blank', 'width=900,height=1200');
+        if (!w) return;
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        w.print();
+    };
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4 print:p-0 print:bg-white print:block" onClick={onClose}>

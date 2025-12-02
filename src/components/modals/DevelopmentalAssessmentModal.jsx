@@ -152,10 +152,32 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
                             </button>
                         ))}
                     </div>
-                     <div className="flex items-center gap-2 bg-gray-900/50 p-1 rounded-lg">
-                        <span className="text-sm font-bold text-gray-300 px-2">ปีการศึกษา {currentYear}</span>
-                        <button onClick={() => setSelectedTerm('term1')} className={`px-3 py-1 text-xs rounded ${selectedTerm === 'term1' ? 'bg-blue-500' : ''}`}>เทอม 1</button>
-                        <button onClick={() => setSelectedTerm('term2')} className={`px-3 py-1 text-xs rounded ${selectedTerm === 'term2' ? 'bg-blue-500' : ''}`}>เทอม 2</button>
+                     <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-blue-300/30 shadow-inner shadow-blue-500/10">
+                        <span className="text-sm font-bold text-gray-200 px-2">ปีการศึกษา {currentYear}</span>
+                        <button
+                            type="button"
+                            data-testid="assessment-term1"
+                            onClick={() => setSelectedTerm('term1')}
+                            className={`px-3 py-1 text-xs rounded-full border transition ${
+                                selectedTerm === 'term1'
+                                    ? 'bg-blue-500 text-white border-blue-200 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+                                    : 'bg-white/10 text-blue-200 border-blue-200/50 hover:bg-white/20'
+                            }`}
+                        >
+                            เทอม 1
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="assessment-term2"
+                            onClick={() => setSelectedTerm('term2')}
+                            className={`px-3 py-1 text-xs rounded-full border transition ${
+                                selectedTerm === 'term2'
+                                    ? 'bg-blue-500 text-white border-blue-200 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+                                    : 'bg-white/10 text-blue-200 border-blue-200/50 hover:bg-white/20'
+                            }`}
+                        >
+                            เทอม 2
+                        </button>
                     </div>
                 </div>
 

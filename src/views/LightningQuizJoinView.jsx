@@ -5,6 +5,8 @@ import Icon from '../icons/Icon';
 /* eslint-disable react-hooks/exhaustive-deps */
 
 const quizSessionsPath = `artifacts/${appId}/public/data/quiz_sessions`;
+const JOIN_MAX_ATTEMPTS = 2;
+const JOIN_RETRY_DELAY_MS = 350;
 
 const LightningQuizJoinView = () => {
   const [pin, setPin] = React.useState('');
@@ -39,6 +41,7 @@ const LightningQuizJoinView = () => {
   const handlePinChange = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 6);
     setPin(value);
+    if (error) setError('');
   };
 
   const handleJoin = async (e) => {
@@ -48,8 +51,24 @@ const LightningQuizJoinView = () => {
     setError('');
     try {
       const pinQuery = query(collection(db, quizSessionsPath), where('sessionCode', '==', pin), limit(1));
-      const snapshot = await getDocs(pinQuery);
-      if (snapshot.empty) {
+      let snapshot;
+      let lastError = null;
+      for (let attempt = 0; attempt < JOIN_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          snapshot = await getDocs(pinQuery);
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (attempt < JOIN_MAX_ATTEMPTS - 1) {
+            await new Promise((resolve) => setTimeout(resolve, JOIN_RETRY_DELAY_MS));
+          }
+        }
+      }
+      if (lastError) {
+        throw lastError;
+      }
+      if (!snapshot || snapshot.empty) {
         setError('ไม่พบ PIN นี้ในระบบ กรุณาตรวจสอบอีกครั้ง');
         setSession(null);
         setSessionDetail(null);
