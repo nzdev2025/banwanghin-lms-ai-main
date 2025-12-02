@@ -4,6 +4,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { db, appId, logActivity } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 import AIQuizSetGeneratorModal from './AIQuizSetGeneratorModal';
+import JoinQrPreview from './JoinQrPreview';
+import { shouldAutoCompleteSession } from './lightningQuizHelpers';
 /* eslint-disable react-hooks/exhaustive-deps */
 
 const quizSetsPath = `artifacts/${appId}/public/data/quiz_sets`;
@@ -69,6 +71,7 @@ const LightningQuizModal = ({ onClose }) => {
   const [advanceMode, setAdvanceMode] = React.useState('manual');
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = React.useState(20);
   const autoAdvanceRef = useRef(null);
+  const autoCompleteRef = useRef(null);
   const isAutoAdvance = advanceMode === 'auto';
   const currentQuestionIndex = sessionDoc?.currentQuestionIndex;
   const currentQuestion =
@@ -293,6 +296,23 @@ const LightningQuizModal = ({ onClose }) => {
     }, 800);
     return () => clearTimeout(t);
   }, [isAutoAdvance, db, activeSession, sessionDoc, currentQuestionIndex, timeLeft]);
+
+  // Auto-complete session after last question is revealed (no need for host to click)
+  React.useEffect(() => {
+    if (!db || !activeSession || !sessionDoc) return;
+    if (!shouldAutoCompleteSession(sessionDoc)) return;
+    const key = `${sessionDoc.id || activeSession.id}-auto-complete-${sessionDoc.currentQuestionIndex}`;
+    if (autoCompleteRef.current === key) return;
+    autoCompleteRef.current = key;
+    updateDoc(doc(db, quizSessionsPath, activeSession.id), {
+      status: 'completed',
+      currentQuestionIndex: null,
+      revealAnswer: false,
+      questionEndsAt: null,
+    })
+      .then(() => logActivity('QUIZ_SESSION_END', `จบเกม PIN ${activeSession.sessionCode}`))
+      .catch((err) => console.error('auto complete session failed', err));
+  }, [db, activeSession, sessionDoc, sessionDoc?.status, sessionDoc?.revealAnswer, sessionDoc?.currentQuestionIndex, sessionDoc?.questions]);
 
   React.useEffect(() => {
     if (!db || !activeSession || currentQuestionIndex === null || currentQuestionIndex === undefined) {
@@ -630,7 +650,7 @@ const LightningQuizModal = ({ onClose }) => {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
         <div
-          className="flex h-[96vh] w-[98vw] max-w-[1500px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
+          className="flex h-[97vh] w-[99vw] max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
           onClick={(e) => e.stopPropagation()}
         >
         <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
@@ -1053,17 +1073,10 @@ const LightningQuizModal = ({ onClose }) => {
                           {copySuccess && <p className="text-emerald-300">คัดลอกแล้ว!</p>}
                           {shareError && <p className="text-amber-300">{shareError}</p>}
                           {showQr && joinQrUrl && (
-                            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                              <img
-                                src={joinQrUrl}
-                                alt="QR สำหรับเข้าร่วม Lightning Quiz"
-                                className="h-28 w-28 rounded-lg border border-white/10 bg-white/70 p-1"
-                              />
-                              <div className="text-xs text-white/70">
-                                <p className="font-semibold text-white">สแกน QR เพื่อเข้าห้องทันที</p>
-                                <p>แชร์ให้นักเรียนเปิดกล้อง/แอปสแกนแล้วจะนำไปหน้ากรอก PIN อัตโนมัติ</p>
-                              </div>
-                            </div>
+                            <JoinQrPreview
+                              qrUrl={joinQrUrl}
+                              description="แชร์ให้นักเรียนเปิดกล้อง/แอปสแกนแล้วจะนำไปหน้ากรอก PIN อัตโนมัติ"
+                            />
                           )}
                         </div>
 

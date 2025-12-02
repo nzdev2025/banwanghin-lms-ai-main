@@ -129,7 +129,7 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0c142a]/95 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-[96vw] max-w-[1200px] h-[94vh] overflow-hidden rounded-3xl border border-white/15 bg-[#0c142a]/95 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-2">
             <Icon name="Sparkles" size={20} className="text-amber-300" />
@@ -140,7 +140,7 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
           </button>
         </header>
 
-        <div className="grid gap-4 p-5 lg:grid-cols-[1fr_1.1fr]">
+        <div className="grid gap-4 p-5 lg:grid-cols-[1fr_1.1fr] h-[calc(94vh-68px)] overflow-auto">
           <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
