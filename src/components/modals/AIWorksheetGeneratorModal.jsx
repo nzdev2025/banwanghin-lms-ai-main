@@ -3,6 +3,7 @@ import React from 'react';
 import Icon from '../../icons/Icon';
 import { callGeminiAPI } from '../../api/gemini';
 import WorksheetRenderer from '../worksheet/WorksheetRenderer';
+import { buildPrintableWorksheetHTML, printWorksheetHtml } from './aiWorksheetPrint';
 
 const AIWorksheetGeneratorModal = ({ onClose }) => {
     const [formData, setFormData] = React.useState({
@@ -119,7 +120,10 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
         }
     };
     
-    const handlePrint = () => { window.print(); };
+    const handlePrint = () => {
+        const html = buildPrintableWorksheetHTML({ worksheetData, formData });
+        printWorksheetHtml(html);
+    };
     const placeholders = { worksheet: { title: "ใบงานเรื่อง", topic: "เช่น ส่วนประกอบของพืช..." }, exam: { title: "แบบทดสอบวัดผล", topic: "เช่น ประวัติศาสตร์สุโขทัย..." } };
     const currentTexts = placeholders[formData.docType];
 
