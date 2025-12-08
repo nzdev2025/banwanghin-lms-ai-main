@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import Sidebar from '../Sidebar';
 import { SiteConfigContext } from '../../../context/SiteConfigContext';
+import { AppContext } from '../../../context/AppContext';
 
 const mockConfig = {
   primaryColor: 'from-emerald-400 via-teal-500 to-sky-500',
@@ -16,9 +17,11 @@ const mockConfig = {
 
 const renderWithConfig = (ui, initialRoute = '/') =>
   render(
-    <SiteConfigContext.Provider value={{ siteConfig: mockConfig }}>
-      <MemoryRouter initialEntries={[initialRoute]}>{ui}</MemoryRouter>
-    </SiteConfigContext.Provider>
+    <AppContext.Provider value={{ userRole: 'admin' }}>
+      <SiteConfigContext.Provider value={{ siteConfig: mockConfig }}>
+        <MemoryRouter initialEntries={[initialRoute]}>{ui}</MemoryRouter>
+      </SiteConfigContext.Provider>
+    </AppContext.Provider>
   );
 
 describe('Sidebar', () => {

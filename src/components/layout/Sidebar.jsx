@@ -13,9 +13,11 @@ import {
 } from 'lucide-react';
 
 import { useSiteConfig } from '../../context/SiteConfigContext';
+import { useApp } from '../../context/AppContext';
 
 const Sidebar = () => {
   const { siteConfig } = useSiteConfig();
+  const { userRole } = useApp();
   const navItems = [
     { icon: House, name: 'แดชบอร์ด', path: '/' },
     { icon: Book, name: 'รายวิชา', path: '/subjects' },
@@ -24,7 +26,31 @@ const Sidebar = () => {
     { icon: FilePlus, name: 'AI ช่วยสร้าง', path: '/tools', feature: 'tools' },
     { icon: Briefcase, name: 'เครื่องมือช่วยสอน', path: '/classroom-tools' },
     { icon: Settings, name: 'ตั้งค่า', path: '/settings' },
-  ].filter((item) => !item.feature || siteConfig.featureFlags?.[item.feature] !== false);
+  ].filter((item) => {
+    // 1. Feature Flag Check
+    if (item.feature && siteConfig.featureFlags?.[item.feature] === false) {
+      return false;
+    }
+
+    // 2. Role-Based Access Control (RBAC)
+    // Student & Parent: Only Dashboard
+    if (userRole === 'student' || userRole === 'parent') {
+      return item.path === '/';
+    }
+
+    // Teacher: No Settings
+    if (userRole === 'teacher' && item.path === '/settings') {
+      return false;
+    }
+
+    // Admin: See All (Settings is restricted to Admin implicit by Teacher check above, 
+    // but effectively Admin sees everything unless feature flag hides it)
+    if (item.path === '/settings' && userRole !== 'admin') {
+         return false;
+    }
+
+    return true;
+  });
 
   const supportItems = [
     { icon: MessageCircle, label: 'Community', href: '#' },

@@ -3,7 +3,7 @@
 // It uses AppContext for global state management.
 
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { AppContextProvider, useApp } from './context/AppContext';
 import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext';
 
@@ -57,6 +57,7 @@ const PageLoader = () => (
 function AppContent() {
   const {
     user,
+    userRole,
     authLoading,
     subjects,
     modalStack,
@@ -151,7 +152,16 @@ function AppContent() {
           <Route path="students" element={<StudentsView openModal={openModal} />} />
           <Route path="tools" element={<ToolsView openModal={openModal} />} />
           <Route path="classroom-tools" element={<ClassroomToolsView openModal={openModal} />} />
-          <Route path="settings" element={<SettingsView openModal={openModal} />} />
+          <Route
+            path="settings"
+            element={
+              userRole === 'admin' ? (
+                <SettingsView openModal={openModal} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
         </Route>
         <Route path="/attendance/join/:grade/:date/:token" element={<AttendanceJoinView />} />
       </Routes>

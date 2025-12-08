@@ -4,10 +4,11 @@ import { db, auth, onAuthStateChanged, handleLogout } from '../firebase/firebase
 import { config } from '../config';
 /* eslint-disable react-refresh/only-export-components */
 
-const AppContext = createContext();
+export const AppContext = createContext();
 
 export const AppContextProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [userRole, setUserRole] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [subjects, setSubjects] = useState([]);
     const [modalStack, setModalStack] = useState([]);
@@ -16,6 +17,13 @@ export const AppContextProvider = ({ children }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+            if (currentUser) {
+                // Mock Role Logic
+                const role = currentUser.email === 'nzappcreator@gmail.com' ? 'admin' : 'teacher';
+                setUserRole(role);
+            } else {
+                setUserRole(null);
+            }
             setAuthLoading(false);
         });
         return () => unsubscribe();
@@ -43,6 +51,7 @@ export const AppContextProvider = ({ children }) => {
 
     const value = {
         user,
+        userRole,
         authLoading,
         subjects,
         modalStack,
