@@ -1,8 +1,8 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { AppContextProvider, useApp } from '../AppContext';
-import { auth, onAuthStateChanged } from '../../firebase/firebase';
-import { vi } from 'vitest';
+import { onAuthStateChanged } from '../../firebase/firebase';
+import { vi, describe, it, expect } from 'vitest';
 
 // Mock Firebase
 vi.mock('../../firebase/firebase', () => ({
@@ -43,16 +43,16 @@ describe('AppContext RBAC', () => {
     });
 
     await act(async () => {
-        render(
-            <AppContextProvider>
-                <TestComponent />
-            </AppContextProvider>
-        );
+      render(
+        <AppContextProvider>
+          <TestComponent />
+        </AppContextProvider>
+      );
     });
 
     await waitFor(() => {
-        expect(screen.getByTestId('user-email')).toHaveTextContent('admin@school.ac.th');
-        expect(screen.getByTestId('user-role')).toHaveTextContent('admin');
+      expect(screen.getByTestId('user-email')).toHaveTextContent('admin@school.ac.th');
+      expect(screen.getByTestId('user-role')).toHaveTextContent('admin');
     });
   });
 
@@ -62,17 +62,17 @@ describe('AppContext RBAC', () => {
       return vi.fn(); // unsubscribe
     });
 
-     await act(async () => {
-        render(
+    await act(async () => {
+      render(
         <AppContextProvider>
-            <TestComponent />
+          <TestComponent />
         </AppContextProvider>
-        );
-     });
+      );
+    });
 
     await waitFor(() => {
-        expect(screen.getByTestId('user-email')).toHaveTextContent('teacher@school.ac.th');
-        expect(screen.getByTestId('user-role')).toHaveTextContent('teacher');
+      expect(screen.getByTestId('user-email')).toHaveTextContent('teacher@school.ac.th');
+      expect(screen.getByTestId('user-role')).toHaveTextContent('teacher');
     });
   });
 });

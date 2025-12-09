@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import App from '../App';
 import { AppContext } from '../context/AppContext';
 import { SiteConfigContext } from '../context/SiteConfigContext';
-import { vi } from 'vitest';
+import { vi, describe, it, expect } from 'vitest';
 
 // Mock Modules
 vi.mock('../views/SettingsView', () => ({
@@ -27,29 +27,29 @@ vi.mock('../components/layout/Sidebar', () => ({ default: () => <div>Sidebar</di
 
 // Mock Config
 const mockSiteConfig = {
-    featureFlags: {},
-    primaryColor: 'from-blue-500',
-    logoText: 'L',
-    siteTitle: 'School',
-    schoolName: 'School Name',
-    developerName: 'Dev',
+  featureFlags: {},
+  primaryColor: 'from-blue-500',
+  logoText: 'L',
+  siteTitle: 'School',
+  schoolName: 'School Name',
+  developerName: 'Dev',
 };
 
 const renderApp = (initialEntries, role) => {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-       <AppContext.Provider value={{ 
-           user: { email: 'test@test.com' }, 
-           userRole: role, 
-           authLoading: false,
-           subjects: [],
-           modalStack: [],
-           openModal: vi.fn(),
-           closeModal: vi.fn(),
-           handleLogout: vi.fn()
-       }}>
+      <AppContext.Provider value={{
+        user: { email: 'test@test.com' },
+        userRole: role,
+        authLoading: false,
+        subjects: [],
+        modalStack: [],
+        openModal: vi.fn(),
+        closeModal: vi.fn(),
+        handleLogout: vi.fn()
+      }}>
         <SiteConfigContext.Provider value={{ siteConfig: mockSiteConfig }}>
-           <App />
+          <App />
         </SiteConfigContext.Provider>
       </AppContext.Provider>
     </MemoryRouter>
@@ -64,30 +64,30 @@ const renderApp = (initialEntries, role) => {
 // Mocking AppContextProvider in '../context/AppContext' is already done in previous tests but here I want to control the value.
 
 vi.mock('../context/AppContext', async () => {
-    const actual = await vi.importActual('../context/AppContext');
-    return {
-        ...actual,
-        AppContextProvider: ({ children, value }) => <div>{children}</div>, // Bypass internal provider
-        useApp: () => React.useContext(actual.AppContext), // Use the context I provide in renderApp
-    };
+  const actual = await vi.importActual('../context/AppContext');
+  return {
+    ...actual,
+    AppContextProvider: ({ children, value }) => <div>{children}</div>, // Bypass internal provider
+    useApp: () => React.useContext(actual.AppContext), // Use the context I provide in renderApp
+  };
 });
 
 describe('App Route Protection', () => {
   it('allows access to /settings for Admin', async () => {
     renderApp(['/settings'], 'admin');
     await waitFor(() => {
-       expect(screen.getByTestId('settings-view')).toBeInTheDocument();
+      expect(screen.getByTestId('settings-view')).toBeInTheDocument();
     });
   });
 
   it('redirects to Dashboard (or does not show Settings) for Teacher accessing /settings', async () => {
-     renderApp(['/settings'], 'teacher');
-     await waitFor(() => {
-        expect(screen.queryByTestId('settings-view')).not.toBeInTheDocument();
-        // Since the current implementation just renders standard Routes, if I don't protect it, it WILL show Settings.
-        // If I protect it by redirecting, it should show Dashboard.
-        // But for "fail first", I expect it TO SHOW settings (fail), but here I assert it DOES NOT show.
-        // So this test SHOULD fail if implementation is missing.
-     });
+    renderApp(['/settings'], 'teacher');
+    await waitFor(() => {
+      expect(screen.queryByTestId('settings-view')).not.toBeInTheDocument();
+      // Since the current implementation just renders standard Routes, if I don't protect it, it WILL show Settings.
+      // If I protect it by redirecting, it should show Dashboard.
+      // But for "fail first", I expect it TO SHOW settings (fail), but here I assert it DOES NOT show.
+      // So this test SHOULD fail if implementation is missing.
+    });
   });
 });

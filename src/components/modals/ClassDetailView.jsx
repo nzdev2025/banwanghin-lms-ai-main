@@ -6,6 +6,7 @@ import Icon from '../../icons/Icon';
 import AnalyticsDashboard from '../analytics/AnalyticsDashboard';
 import AssignmentModal from './AssignmentModal';
 import ConfirmationModal from './ConfirmationModal';
+import { generatePp5PDF } from '../../utils/pdfGenerator';
 
 const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
     const [students, setStudents] = React.useState([]);
@@ -195,6 +196,7 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                         <div className="flex gap-4">
                             <button onClick={() => setModal({ type: 'addAssignment' })} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 border border-gray-600"><Icon name="FilePlus" size={16} />เพิ่มรายการเก็บคะแนน</button>
                             <button onClick={handleExportData} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 border border-gray-600"><Icon name="Download" size={16} />ส่งออกคะแนน</button>
+                            <button onClick={() => generatePp5PDF(subject, grade, students, scores, assignments)} className="flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 shadow-md shadow-blue-500/30"><Icon name="Printer" size={16} />พิมพ์ ปพ.5</button>
                         </div>
                         <button onClick={handleSaveAll} disabled={isSaving} className="flex items-center gap-2 text-sm bg-teal-500/80 hover:bg-teal-500 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 shadow-lg shadow-teal-500/20 disabled:bg-gray-500 disabled:cursor-not-allowed">
                             {isSaving ? <Icon name="Loader2" className="animate-spin" size={16} /> : <Icon name="Save" size={16} />}{isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}

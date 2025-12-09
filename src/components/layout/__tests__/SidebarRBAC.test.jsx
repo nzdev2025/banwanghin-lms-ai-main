@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { AppContext } from '../../../context/AppContext';
 import { SiteConfigContext } from '../../../context/SiteConfigContext';
-import { vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Mock Config
 const mockSiteConfig = {
