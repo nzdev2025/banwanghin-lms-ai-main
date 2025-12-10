@@ -13,9 +13,25 @@ vi.mock('../../../icons/Icon', () => ({
   default: ({ name }) => <span data-testid={`icon-${name}`} />,
 }));
 
-describe('HealthRecordModal term toggle visibility', () => {
+// Mock SiteConfigContext
+vi.mock('../../../context/SiteConfigContext', () => ({
+  useSiteConfig: vi.fn(() => ({
+    siteConfig: {
+      schoolName: 'Test School Health',
+    }
+  }))
+}));
+
+describe('HealthRecordModal', () => {
+  it('renders correctly with dynamic school name', () => {
+    render(<HealthRecordModal onClose={() => { }} />);
+    expect(screen.getByText(/บันทึกข้อมูลสุขภาพ/i)).toBeInTheDocument();
+    // This assertion ensures we are using the config, it should fail if hardcoded (which is "โรงเรียนบ้านวังหิน")
+    expect(screen.getByText(/Test School Health/i)).toBeInTheDocument();
+  });
+
   it('shows highlighted term button clearly against background', async () => {
-    render(<HealthRecordModal onClose={() => {}} />);
+    render(<HealthRecordModal onClose={() => { }} />);
     const term1 = await screen.findByTestId('health-term1');
     const term2 = screen.getByTestId('health-term2');
 

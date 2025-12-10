@@ -2,7 +2,7 @@
 // Stores constants and environment-dependent values
 
 export const config = {
-  appId: 'banwanghin-lms-dev', // Default appId, can be overridden if needed
+  appId: import.meta.env.VITE_FIRESTORE_APP_ID || 'banwanghin-lms-dev', // Default appId, can be overridden if needed
   firebase: {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

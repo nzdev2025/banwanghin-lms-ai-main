@@ -8,10 +8,10 @@ export const SiteConfigContext = createContext();
 
 const defaultConfig = {
     siteTitle: 'KruKit AI',
-    schoolName: 'โรงเรียนบ้านวังหิน',
+    schoolName: import.meta.env.VITE_SCHOOL_NAME || 'โรงเรียนบ้านวังหิน',
     logoText: 'AI',
     developerName: 'Wasin Suksuwan',
-    footerText: 'Banwanghin KruKit AI by Wasin Suksuwan. สงวนลิขสิทธิ์',
+    footerText: `${import.meta.env.VITE_SCHOOL_NAME || 'Banwanghin'} KruKit AI by Wasin Suksuwan. สงวนลิขสิทธิ์`,
     version: '5.0',
     primaryColor: 'from-emerald-400 via-teal-500 to-sky-500',
     academicYear: '2567',

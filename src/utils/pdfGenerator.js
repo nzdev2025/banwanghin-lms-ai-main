@@ -44,7 +44,7 @@ const calculateGrade = (score, maxScore) => {
     return '0';
 };
 
-export const generatePp5PDF = async (subject, grade, students, scores, assignments) => {
+export const generatePp5PDF = async (subject, grade, students, scores, assignments, config = {}) => {
     // Use landscape orientation for better table fit
     const doc = new jsPDF({
         orientation: 'landscape',
@@ -68,7 +68,9 @@ export const generatePp5PDF = async (subject, grade, students, scores, assignmen
     doc.text('แบบบันทึกผลการเรียนประจำรายวิชา (ปพ.5)', pageWidth / 2, 15, { align: 'center' });
 
     doc.setFontSize(12);
-    doc.text('โรงเรียนบ้านวังหิน', pageWidth / 2, 22, { align: 'center' });
+    // Use school name from config or default to hardcoded (or generic) fallback
+    const schoolName = config.schoolName || 'โรงเรียนบ้านวังหิน';
+    doc.text(schoolName, pageWidth / 2, 22, { align: 'center' });
 
     const gradeLabel = grade.replace('p', '');
     doc.setFontSize(11);

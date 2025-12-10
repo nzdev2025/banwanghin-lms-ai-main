@@ -4,8 +4,10 @@ import Icon from '../../icons/Icon';
 import { callGeminiAPI } from '../../api/gemini';
 import WorksheetRenderer from '../worksheet/WorksheetRenderer';
 import { buildPrintableWorksheetHTML, printWorksheetHtml } from './aiWorksheetPrint';
+import { useSiteConfig } from '../../context/SiteConfigContext';
 
 const AIWorksheetGeneratorModal = ({ onClose }) => {
+    const { siteConfig } = useSiteConfig();
     const [formData, setFormData] = React.useState({
         docType: 'worksheet',
         topic: '',
@@ -25,7 +27,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
 
     const getPromptForQuestionType = () => {
         const { questionType } = formData;
-        
+
         const createQuestionExample = (type, text, options = '') => `{ "id": 1, "text": "${text}"${options} }`;
         let questionExample = '';
         let sectionType = 'unknown';
@@ -103,12 +105,12 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
             if (!jsonMatch) { throw new Error("AI did not return a valid JSON object."); }
             const jsonString = jsonMatch[0];
             const parsedData = JSON.parse(jsonString);
-            
+
             const section = parsedData.sections[0];
             const questionCount = section.questions?.length || section.content?.length || 0;
-            
+
             if (questionCount !== parseInt(formData.numQuestions, 10)) {
-                 throw new Error(`AI generated ${questionCount} questions, but ${formData.numQuestions} were requested. Please try again.`);
+                throw new Error(`AI generated ${questionCount} questions, but ${formData.numQuestions} were requested. Please try again.`);
             }
             setWorksheetData(parsedData);
         } catch (e) {
@@ -119,7 +121,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
             setIsGenerating(false);
         }
     };
-    
+
     const handlePrint = () => {
         const html = buildPrintableWorksheetHTML({ worksheetData, formData });
         printWorksheetHtml(html);
@@ -129,27 +131,27 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4 print:p-8 print:bg-white print:block print-wrapper" onClick={onClose}>
-             {/* --- Main Modal for Screen View --- */}
-             <div className="bg-gray-800 border border-purple-500/50 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl shadow-black/50 print:hidden" onClick={(e) => e.stopPropagation()}>
-                 <header className="flex items-center justify-between p-4 border-b border-white/10">
-                     <div className="flex items-center gap-3"><Icon name="FileText" className="text-purple-300" /><h3 className="text-xl font-bold text-white">AI Document Factory</h3></div>
-                     <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={24} /></button>
-                 </header>
+            {/* --- Main Modal for Screen View --- */}
+            <div className="bg-gray-800 border border-purple-500/50 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl shadow-black/50 print:hidden" onClick={(e) => e.stopPropagation()}>
+                <header className="flex items-center justify-between p-4 border-b border-white/10">
+                    <div className="flex items-center gap-3"><Icon name="FileText" className="text-purple-300" /><h3 className="text-xl font-bold text-white">AI Document Factory</h3></div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={24} /></button>
+                </header>
 
-                 <div className="flex-grow flex p-4 gap-4 overflow-hidden">
-                     <div className="w-1/3 flex flex-col gap-4 p-4 bg-gray-900/50 rounded-lg overflow-y-auto">
-                         <div><label className="block text-sm font-medium text-gray-300 mb-2">1. เลือกประเภทเอกสาร</label><div className="flex bg-gray-700/50 rounded-lg p-1"><button onClick={() => setFormData(p => ({...p, docType: 'worksheet'}))} className={`w-1/2 py-2 text-sm rounded-md transition-colors ${formData.docType === 'worksheet' ? 'bg-purple-600 text-white' : 'text-gray-300'}`}>ใบงาน</button><button onClick={() => setFormData(p => ({...p, docType: 'exam'}))} className={`w-1/2 py-2 text-sm rounded-md transition-colors ${formData.docType === 'exam' ? 'bg-purple-600 text-white' : 'text-gray-300'}`}>ข้อสอบ</button></div></div>
-                         <div><label className="block text-sm font-medium text-gray-300 mb-1">2. หัวข้อหลัก</label><input type="text" name="topic" value={formData.topic} onChange={handleInputChange} placeholder={currentTexts.topic} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white" /></div>
-                         <div><label className="block text-sm font-medium text-gray-300 mb-1">3. ระดับชั้น</label><select name="gradeLevel" value={formData.gradeLevel} onChange={handleInputChange} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white">{['ประถมศึกษาปีที่ 1', 'ประถมศึกษาปีที่ 2', 'ประถมศึกษาปีที่ 3', 'ประถมศึกษาปีที่ 4', 'ประถมศึกษาปีที่ 5', 'ประถมศึกษาปีที่ 6'].map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                         <div><label className="block text-sm font-medium text-gray-300 mb-1">4. ประเภทคำถาม</label><select name="questionType" value={formData.questionType} onChange={handleInputChange} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white">{['เติมคำในช่องว่าง', 'ปรนัย 3 ตัวเลือก', 'ปรนัย 4 ตัวเลือก', 'ถูก-ผิด', 'อัตนัย (คำถามสั้นๆ)'].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                         <div><label className="block text-sm font-medium text-gray-300 mb-1">5. จำนวนข้อ</label><input type="number" name="numQuestions" value={formData.numQuestions} onChange={handleInputChange} min="1" max="50" className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white" /></div>
-                         <div><label className="block text-sm font-medium text-gray-300 mb-1">6. คำสั่งพิเศษ (Optional)</label><textarea name="specialInstructions" value={formData.specialInstructions} onChange={handleInputChange} placeholder="เช่น เน้นการคำนวณ, มีโจทย์ปัญหา..." rows="3" className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white text-sm"></textarea></div>
-                         <button onClick={handleGenerate} disabled={isGenerating || !formData.topic} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:opacity-90 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 mt-auto disabled:opacity-50 disabled:cursor-wait">{isGenerating ? <Icon name="Loader2" className="animate-spin" size={20}/> : <Icon name="Sparkles" size={20}/>}{isGenerating ? 'กำลังสร้าง...' : 'สร้างเอกสาร'}</button>
-                     </div>
-                     <div className="w-2/3 bg-gray-900/50 p-4 rounded-lg overflow-y-auto printable-content-area">
+                <div className="flex-grow flex p-4 gap-4 overflow-hidden">
+                    <div className="w-1/3 flex flex-col gap-4 p-4 bg-gray-900/50 rounded-lg overflow-y-auto">
+                        <div><label className="block text-sm font-medium text-gray-300 mb-2">1. เลือกประเภทเอกสาร</label><div className="flex bg-gray-700/50 rounded-lg p-1"><button onClick={() => setFormData(p => ({ ...p, docType: 'worksheet' }))} className={`w-1/2 py-2 text-sm rounded-md transition-colors ${formData.docType === 'worksheet' ? 'bg-purple-600 text-white' : 'text-gray-300'}`}>ใบงาน</button><button onClick={() => setFormData(p => ({ ...p, docType: 'exam' }))} className={`w-1/2 py-2 text-sm rounded-md transition-colors ${formData.docType === 'exam' ? 'bg-purple-600 text-white' : 'text-gray-300'}`}>ข้อสอบ</button></div></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">2. หัวข้อหลัก</label><input type="text" name="topic" value={formData.topic} onChange={handleInputChange} placeholder={currentTexts.topic} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white" /></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">3. ระดับชั้น</label><select name="gradeLevel" value={formData.gradeLevel} onChange={handleInputChange} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white">{['ประถมศึกษาปีที่ 1', 'ประถมศึกษาปีที่ 2', 'ประถมศึกษาปีที่ 3', 'ประถมศึกษาปีที่ 4', 'ประถมศึกษาปีที่ 5', 'ประถมศึกษาปีที่ 6'].map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">4. ประเภทคำถาม</label><select name="questionType" value={formData.questionType} onChange={handleInputChange} className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white">{['เติมคำในช่องว่าง', 'ปรนัย 3 ตัวเลือก', 'ปรนัย 4 ตัวเลือก', 'ถูก-ผิด', 'อัตนัย (คำถามสั้นๆ)'].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">5. จำนวนข้อ</label><input type="number" name="numQuestions" value={formData.numQuestions} onChange={handleInputChange} min="1" max="50" className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white" /></div>
+                        <div><label className="block text-sm font-medium text-gray-300 mb-1">6. คำสั่งพิเศษ (Optional)</label><textarea name="specialInstructions" value={formData.specialInstructions} onChange={handleInputChange} placeholder="เช่น เน้นการคำนวณ, มีโจทย์ปัญหา..." rows="3" className="w-full bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white text-sm"></textarea></div>
+                        <button onClick={handleGenerate} disabled={isGenerating || !formData.topic} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:opacity-90 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 mt-auto disabled:opacity-50 disabled:cursor-wait">{isGenerating ? <Icon name="Loader2" className="animate-spin" size={20} /> : <Icon name="Sparkles" size={20} />}{isGenerating ? 'กำลังสร้าง...' : 'สร้างเอกสาร'}</button>
+                    </div>
+                    <div className="w-2/3 bg-gray-900/50 p-4 rounded-lg overflow-y-auto printable-content-area">
                         <div id="a4-preview-area" className="a4-paper bg-white text-black p-12 shadow-lg mx-auto font-sarabun">
                             <div className="school-header flex flex-col items-center mb-6">
-                                <h1 className="text-xl font-bold">โรงเรียนบ้านวังหิน</h1>
+                                <h1 className="text-xl font-bold">{siteConfig.schoolName}</h1>
                                 <h2 className="text-lg">{worksheetData?.title || currentTexts.title}</h2>
                             </div>
                             <div className="info-section flex flex-wrap justify-between items-center border-t border-b border-gray-400 py-2 my-4 text-base gap-4">
@@ -161,17 +163,17 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
                             </div>
                             <div className="content-area mt-6">{isGenerating && <div className="text-center text-gray-500 flex items-center justify-center h-48"><Icon name="Loader2" className="animate-spin mr-2" /> กำลังสร้างสรรค์ผลงาน...</div>}{error && <p className="text-center text-red-500 p-4 bg-red-500/10 rounded-lg">{error}</p>}{worksheetData && <WorksheetRenderer worksheetData={worksheetData} />}{!worksheetData && !isGenerating && !error && <div className="text-center text-gray-400 h-48 flex items-center justify-center">ผลลัพธ์จาก AI จะแสดงที่นี่...</div>}</div>
                         </div>
-                     </div>
-                 </div>
-                  <footer className="p-3 border-t border-white/10 flex justify-end">
-                      <button onClick={handlePrint} className="flex items-center gap-2 py-2 px-6 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-lg transition-colors">
-                         <Icon name="Printer" size={18} /> พิมพ์
-                     </button>
-                 </footer>
-             </div>
-             
-             {/* --- Printable Area (Visible on Print ONLY) --- */}
-             <div className="hidden print:block font-sarabun text-black print-only-layout">
+                    </div>
+                </div>
+                <footer className="p-3 border-t border-white/10 flex justify-end">
+                    <button onClick={handlePrint} className="flex items-center gap-2 py-2 px-6 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-lg transition-colors">
+                        <Icon name="Printer" size={18} /> พิมพ์
+                    </button>
+                </footer>
+            </div>
+
+            {/* --- Printable Area (Visible on Print ONLY) --- */}
+            <div className="hidden print:block font-sarabun text-black print-only-layout">
                 <div className="print-page">
                     <div className="school-header text-center mb-4">
                         <h1 className="font-bold text-lg">{worksheetData?.title || 'แบบทดสอบ'}</h1>
@@ -186,7 +188,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
                         {worksheetData ? <WorksheetRenderer worksheetData={worksheetData} /> : <p>ไม่มีข้อมูลสำหรับพิมพ์</p>}
                     </div>
                 </div>
-             </div>
+            </div>
         </div>
     );
 };

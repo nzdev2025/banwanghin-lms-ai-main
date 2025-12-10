@@ -3,6 +3,7 @@ import React from 'react';
 import { collection, onSnapshot, query, orderBy, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, logActivity, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
+import { useSiteConfig } from '../../context/SiteConfigContext';
 import Icon from '../../icons/Icon';
 import Papa from 'papaparse';
 
@@ -26,10 +27,10 @@ const calculateAge = (birthDateString) => {
 // Note: These are simplified averages. A clinical app would use detailed percentile charts.
 const growthStandards = {
     // ageInYears: { boy: { h: heightCm, w: weightKg }, girl: { h: heightCm, w: weightKg } }
-    '6':  { boy: { h: 115, w: 20 }, girl: { h: 114, w: 19.5 } },
-    '7':  { boy: { h: 121, w: 23 }, girl: { h: 120, w: 22.5 } },
-    '8':  { boy: { h: 127, w: 26 }, girl: { h: 126, w: 25.5 } },
-    '9':  { boy: { h: 132, w: 29 }, girl: { h: 132, w: 29 } },
+    '6': { boy: { h: 115, w: 20 }, girl: { h: 114, w: 19.5 } },
+    '7': { boy: { h: 121, w: 23 }, girl: { h: 120, w: 22.5 } },
+    '8': { boy: { h: 127, w: 26 }, girl: { h: 126, w: 25.5 } },
+    '9': { boy: { h: 132, w: 29 }, girl: { h: 132, w: 29 } },
     '10': { boy: { h: 137, w: 32 }, girl: { h: 138, w: 33 } },
     '11': { boy: { h: 143, w: 36 }, girl: { h: 144, w: 38 } },
     '12': { boy: { h: 149, w: 41 }, girl: { h: 151, w: 43 } },
@@ -60,7 +61,7 @@ const getDetailedGrowthStatus = (gender, ageInYears, weight, height) => {
             else statuses.heightForAge = 'ตามเกณฑ์';
         }
     }
-    
+
     // Weight for Height (BMI based)
     if (weight && height) {
         const heightInMeters = height / 100;
@@ -77,6 +78,7 @@ const getDetailedGrowthStatus = (gender, ageInYears, weight, height) => {
 
 
 const HealthRecordModal = ({ onClose }) => {
+    const { siteConfig } = useSiteConfig();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [students, setStudents] = React.useState([]);
     const [healthData, setHealthData] = React.useState({});
@@ -117,7 +119,7 @@ const HealthRecordModal = ({ onClose }) => {
         });
         return () => unsubStudents();
     }, [selectedGrade, currentYear, term]);
-    
+
     const handleDataChange = (studentId, field, value) => {
         const parsedValue = value === '' ? null : parseFloat(value);
         setHealthData(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: parsedValue } }));
@@ -128,17 +130,17 @@ const HealthRecordModal = ({ onClose }) => {
         try {
             const healthCollectionPath = `artifacts/${appId}/public/data/health_records/${selectedGrade}-${currentYear}-${term}/records`;
             const batch = writeBatch(db);
-            
+
             Object.keys(healthData).forEach(studentId => {
                 const data = healthData[studentId];
-                if(data && (data.weight || data.height)) {
-                     const docRef = doc(db, healthCollectionPath, studentId);
-                     batch.set(docRef, { ...data, lastUpdated: serverTimestamp(), measuredAt: serverTimestamp() }, { merge: true });
+                if (data && (data.weight || data.height)) {
+                    const docRef = doc(db, healthCollectionPath, studentId);
+                    batch.set(docRef, { ...data, lastUpdated: serverTimestamp(), measuredAt: serverTimestamp() }, { merge: true });
                 }
             });
-            
+
             await batch.commit();
-            logActivity('HEALTH_RECORD_SAVE', `บันทึกข้อมูลสุขภาพ ป.${selectedGrade.replace('p','')} ปีการศึกษา ${currentYear} เทอม ${term.replace('term','')}`);
+            logActivity('HEALTH_RECORD_SAVE', `บันทึกข้อมูลสุขภาพ ป.${selectedGrade.replace('p', '')} ปีการศึกษา ${currentYear} เทอม ${term.replace('term', '')}`);
             alert('บันทึกข้อมูลเรียบร้อย!');
         } catch (error) {
             console.error("Error saving health data:", error);
@@ -147,7 +149,7 @@ const HealthRecordModal = ({ onClose }) => {
             setIsSaving(false);
         }
     };
-    
+
     const handlePrint = () => { window.print(); };
 
     const handleExport = () => {
@@ -175,7 +177,7 @@ const HealthRecordModal = ({ onClose }) => {
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
-        link.setAttribute("download", `health_record_p${selectedGrade.replace('p','')}_${currentYear}_${term}.csv`);
+        link.setAttribute("download", `health_record_p${selectedGrade.replace('p', '')}_${currentYear}_${term}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -188,26 +190,25 @@ const HealthRecordModal = ({ onClose }) => {
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="HeartPulse" />บันทึกข้อมูลสุขภาพ</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                 </header>
-                
+
                 <div className="p-4 flex flex-wrap items-center justify-between gap-4 border-b border-white/10">
                     <div className="flex items-center gap-2">
-                         {grades.map((gradeId, index) => (
+                        {grades.map((gradeId, index) => (
                             <button key={gradeId} onClick={() => setSelectedGrade(gradeId)} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-colors ${selectedGrade === gradeId ? 'bg-rose-500 text-white' : 'bg-gray-700/50 hover:bg-gray-700 text-gray-300'}`}>
                                 ป.{index + 1}
                             </button>
                         ))}
                     </div>
-                     <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-rose-300/30 shadow-inner shadow-rose-500/10">
+                    <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-rose-300/30 shadow-inner shadow-rose-500/10">
                         <span className="text-sm font-bold text-gray-200 px-2">ปีการศึกษา {currentYear}</span>
                         <button
                             type="button"
                             data-testid="health-term1"
                             onClick={() => setTerm('term1')}
-                            className={`px-3 py-1 text-xs rounded-full border transition ${
-                                term === 'term1'
+                            className={`px-3 py-1 text-xs rounded-full border transition ${term === 'term1'
                                     ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
                                     : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
-                            }`}
+                                }`}
                         >
                             เทอม 1
                         </button>
@@ -215,11 +216,10 @@ const HealthRecordModal = ({ onClose }) => {
                             type="button"
                             data-testid="health-term2"
                             onClick={() => setTerm('term2')}
-                            className={`px-3 py-1 text-xs rounded-full border transition ${
-                                term === 'term2'
+                            className={`px-3 py-1 text-xs rounded-full border transition ${term === 'term2'
                                     ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
                                     : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
-                            }`}
+                                }`}
                         >
                             เทอม 2
                         </button>
@@ -263,7 +263,7 @@ const HealthRecordModal = ({ onClose }) => {
                         </table>
                     )}
                 </div>
-                 <footer className="p-4 border-t border-white/10 flex justify-between items-center">
+                <footer className="p-4 border-t border-white/10 flex justify-between items-center">
                     <div>
                         <button onClick={handleExport} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 border border-gray-600"><Icon name="Download" size={16} />Export to CSV</button>
                         <button onClick={handlePrint} className="ml-2 flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 border border-gray-600"><Icon name="Printer" size={16} />พิมพ์รายงาน</button>
@@ -278,12 +278,12 @@ const HealthRecordModal = ({ onClose }) => {
             <div className="hidden print:block font-sarabun text-black">
                 <div className="text-center mb-4">
                     <h1 className="font-bold text-lg">แบบบันทึกน้ำหนัก - ส่วนสูง</h1>
-                    <h2 className="text-base">ชั้นประถมศึกษาปีที่ {selectedGrade.replace('p','')} ปีการศึกษา {currentYear} โรงเรียนบ้านวังหิน</h2>
+                    <h2 className="text-base">ชั้นประถมศึกษาปีที่ {selectedGrade.replace('p', '')} ปีการศึกษา {currentYear} {siteConfig.schoolName}</h2>
                     <h3 className="text-base">ประจำเดือน {currentMonth} พ.ศ. {currentYear}</h3>
                 </div>
                 <table className="w-full border-collapse border border-black text-xs print-table">
                     <thead>
-                         <tr className="bg-gray-200">
+                        <tr className="bg-gray-200">
                             <th className="border border-black p-1">ที่</th>
                             <th className="border border-black p-1">ชื่อ - สกุล</th>
                             <th className="border border-black p-1">เพศ</th>
@@ -298,10 +298,10 @@ const HealthRecordModal = ({ onClose }) => {
                     </thead>
                     <tbody>
                         {students.map(student => {
-                             const studentHealth = healthData[student.id] || {};
-                             const age = calculateAge(student.birthDate);
-                             const statuses = getDetailedGrowthStatus(student.gender, age.years, studentHealth.weight, studentHealth.height);
-                             return (
+                            const studentHealth = healthData[student.id] || {};
+                            const age = calculateAge(student.birthDate);
+                            const statuses = getDetailedGrowthStatus(student.gender, age.years, studentHealth.weight, studentHealth.height);
+                            return (
                                 <tr key={student.id}>
                                     <td className="border border-black p-1 text-center">{student.studentNumber}</td>
                                     <td className="border border-black p-1">{`${student.firstName} ${student.lastName}`}</td>
@@ -314,11 +314,11 @@ const HealthRecordModal = ({ onClose }) => {
                                     <td className="border border-black p-1 text-center">{statuses.heightForAge}</td>
                                     <td className="border border-black p-1 text-center">{statuses.weightForHeight}</td>
                                 </tr>
-                             );
+                            );
                         })}
                     </tbody>
                 </table>
-                 <div className="mt-12 flex justify-around text-center text-sm">
+                <div className="mt-12 flex justify-around text-center text-sm">
                     <div>
                         <p>ลงชื่อ..................................................</p>
                         <p>(..................................................)</p>

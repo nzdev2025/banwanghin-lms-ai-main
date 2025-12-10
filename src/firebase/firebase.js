@@ -122,7 +122,7 @@ if (firebaseConfigIsValid) {
 // Export a default appId in case one is injected at runtime.  When
 // compiled for production this constant can be replaced with a global
 // variable by your bundler to target a different Firestore path.
-export const appId = typeof __app_id !== 'undefined' ? __app_id : 'banwanghin-lms-dev';
+export const appId = typeof __app_id !== 'undefined' ? __app_id : (import.meta.env.VITE_FIRESTORE_APP_ID || 'banwanghin-lms-dev');
 
 /**
  * Record an activity log entry in Firestore.  Each entry stores a
