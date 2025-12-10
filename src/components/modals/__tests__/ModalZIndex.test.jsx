@@ -9,6 +9,7 @@ import AIQuizSetGeneratorModal from '../AIQuizSetGeneratorModal';
 import AIAssignmentGeneratorModal from '../AIAssignmentGeneratorModal';
 import StudentProfileModal from '../StudentProfileModal';
 import StudentProgressModal from '../StudentProgressModal';
+import SavingsReportModal from '../SavingsReportModal';
 
 // Mock required props
 const mockOnClose = vi.fn();
@@ -18,6 +19,11 @@ const mockOnConfirm = vi.fn();
 // Mock Gemini API
 vi.mock('../../api/gemini', () => ({
   callGeminiAPI: vi.fn(),
+}));
+
+// Mock SavingsReportModal Print
+vi.mock('../savingsReportPrint', () => ({
+    buildPrintableSavingsReport: vi.fn(),
 }));
 
 // Mock WorksheetRenderer
@@ -151,6 +157,15 @@ describe('Modal Z-Index Tests', () => {
     const modalContainer = screen.getByText('ความคืบหน้าเชิงรายบุคคล').closest('.fixed');
     // It should be at least z-[200], but ideally higher since it sits on top.
     // Let's expect z-[250] or similar high value.
+    expect(modalContainer.className).toContain('z-[250]');
+  });
+
+  test('SavingsReportModal should have z-index higher than SavingsManagementModal (z-[250] or more)', () => {
+    render(<SavingsReportModal onClose={mockOnClose} />);
+    
+    // Find the fixed backdrop container directly
+    // Look for text unique to the modal
+    const modalContainer = screen.getByText('รายงานการออมทรัพย์').closest('.fixed');
     expect(modalContainer.className).toContain('z-[250]');
   });
 });

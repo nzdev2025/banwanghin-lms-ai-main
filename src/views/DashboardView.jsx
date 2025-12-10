@@ -1,55 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db, appId } from '../firebase/firebase';
-import { grades } from '../constants/data';
 import OverallAnalytics from '../components/analytics/OverallAnalytics';
 import { useApp } from '../context/AppContext';
 import { useSiteConfig } from '../context/SiteConfigContext';
 import Icon from '../icons/Icon';
 
 const DashboardView = () => {
-  const { subjects, openModal } = useApp();
+  const { subjects, openModal, allStudents, isLoadingStudents, fetchAllStudents } = useApp();
   const { siteConfig } = useSiteConfig();
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
 
   // Search State
-  const [allStudents, setAllStudents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const searchRef = useRef(null);
 
-  // Fetch all students on mount
+  // Fetch all students on mount (cached in context)
   useEffect(() => {
-    const fetchAllStudents = async () => {
-      if (!db) return;
-      setIsLoadingStudents(true);
-      let studentsData = [];
-
-      try {
-        const promises = grades.map(async (grade) => {
-          const path = `artifacts/${appId}/public/data/rosters/${grade}/students`;
-          const querySnapshot = await getDocs(collection(db, path));
-          return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            grade // Attach grade to student object for reference
-          }));
-        });
-
-        const results = await Promise.all(promises);
-        studentsData = results.flat();
-      } catch (error) {
-        console.error("Error fetching students for search:", error);
-      } finally {
-        setAllStudents(studentsData);
-        setIsLoadingStudents(false);
-      }
-    };
-
     fetchAllStudents();
-  }, []);
+  }, [fetchAllStudents]);
 
   // Handle Search
   useEffect(() => {

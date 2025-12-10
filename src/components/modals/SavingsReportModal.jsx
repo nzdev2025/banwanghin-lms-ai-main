@@ -126,7 +126,7 @@ const SavingsReportModal = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4 print:p-0 print:bg-white print:block" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4 print:p-0 print:bg-white print:block" onClick={onClose}>
             <div className="bg-gray-800 border border-emerald-500/50 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl print:border-none print:shadow-none print:w-full print:h-auto print:block" onClick={(e) => e.stopPropagation()}>
                 <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0 print:hidden">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="BookOpen" />รายงานการออมทรัพย์</h2>

@@ -69,6 +69,7 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
             
             logActivity('SAVINGS_TRANSACTION', `ทำรายการ ${type} จำนวน ${transactionAmount} บาท ของ ${student.firstName}`);
             setAmount('');
+            onClose(); // Close modal on success
 
         } catch (error) {
             console.error("Transaction failed: ", error);
@@ -86,7 +87,7 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-800 border border-emerald-500/50 rounded-2xl w-full max-w-lg h-[85vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <header className="p-4 border-b border-white/10 flex-shrink-0">
                     <h3 className="text-xl font-bold text-white">{student.firstName} {student.lastName}</h3>

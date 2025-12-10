@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
 import { db, auth, onAuthStateChanged, handleLogout } from '../firebase/firebase';
 import { config } from '../config';
+import { grades } from '../constants/data';
 /* eslint-disable react-refresh/only-export-components */
 
 export const AppContext = createContext();
@@ -13,6 +14,10 @@ export const AppContextProvider = ({ children }) => {
     const [subjects, setSubjects] = useState([]);
     const [modalStack, setModalStack] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Student Cache
+    const [allStudents, setAllStudents] = useState([]);
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
 
     // Subscribe to auth state changes
     useEffect(() => {
@@ -41,6 +46,31 @@ export const AppContextProvider = ({ children }) => {
         return () => unsubscribe();
     }, [user]);
 
+    // Student Fetching with Cache
+    const fetchAllStudents = useCallback(async (force = false) => {
+        if (!force && allStudents.length > 0) return;
+
+        setIsLoadingStudents(true);
+        try {
+            const promises = grades.map(async (grade) => {
+                const path = `artifacts/${config.appId}/public/data/rosters/${grade}/students`;
+                const querySnapshot = await getDocs(collection(db, path));
+                return querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    grade // Attach grade to student object for reference
+                }));
+            });
+
+            const results = await Promise.all(promises);
+            setAllStudents(results.flat());
+        } catch (error) {
+            console.error("Error fetching students:", error);
+        } finally {
+            setIsLoadingStudents(false);
+        }
+    }, [allStudents.length]);
+
     // Modal helpers
     const openModal = useCallback((type, data = null) => {
         setModalStack((prev) => [...prev, { type, data }]);
@@ -64,13 +94,16 @@ export const AppContextProvider = ({ children }) => {
         subjects,
         modalStack,
         isSidebarOpen,
+        allStudents,
+        isLoadingStudents,
+        fetchAllStudents,
         openModal,
         closeModal,
         closeAllModals,
         toggleSidebar,
         closeSidebar,
         handleLogout,
-    }), [user, userRole, authLoading, subjects, modalStack, isSidebarOpen, openModal, closeModal, closeAllModals, toggleSidebar, closeSidebar]);
+    }), [user, userRole, authLoading, subjects, modalStack, isSidebarOpen, allStudents, isLoadingStudents, fetchAllStudents, openModal, closeModal, closeAllModals, toggleSidebar, closeSidebar]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

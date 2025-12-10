@@ -1,6 +1,6 @@
 import React from 'react';
-import { getDocs, collectionGroup } from 'firebase/firestore';
-import { db, appId } from '../../firebase/firebase';
+import { getAggregateFromServer, sum, collectionGroup, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
 import { colorThemes } from '../../constants/theme';
 import { useStudentPerformanceData } from '../../hooks/useStudentPerformanceData';
 import KeyMetricCard from './KeyMetricCard';
@@ -31,21 +31,35 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
       let totalWithdrawals = 0;
 
       try {
-        const transactionsQuery = collectionGroup(db, 'transactions');
-        const querySnapshot = await getDocs(transactionsQuery);
+        // Use Firestore Aggregation Queries for efficiency
+        const transactionsRef = collectionGroup(db, 'transactions');
+        const depositQuery = query(transactionsRef, where('type', '==', 'deposit'));
+        const withdrawQuery = query(transactionsRef, where('type', '==', 'withdraw'));
 
-        querySnapshot.forEach((doc) => {
-          if (doc.ref.path.startsWith(`artifacts/${appId}/public/data/savings`)) {
-            const transaction = doc.data();
-            if (transaction.type === 'deposit') {
-              totalDeposits += transaction.amount;
-            } else if (transaction.type === 'withdraw') {
-              totalWithdrawals += transaction.amount;
-            }
-          }
-        });
+        const [depositSnap, withdrawSnap] = await Promise.all([
+          getAggregateFromServer(depositQuery, { total: sum('amount') }),
+          getAggregateFromServer(withdrawQuery, { total: sum('amount') })
+        ]);
+
+        totalDeposits = depositSnap.data().total || 0;
+        totalWithdrawals = withdrawSnap.data().total || 0;
       } catch (error) {
-        console.error('Error fetching savings data:', error);
+        console.warn('Aggregation failed (likely missing index), falling back to client-side calculation:', error);
+        try {
+             const transactionsQuery = collectionGroup(db, 'transactions');
+             const querySnapshot = await getDocs(transactionsQuery);
+             
+             querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                // Simple safety check if it belongs to savings
+                if (doc.ref.path.includes('/savings/')) {
+                    if (data.type === 'deposit') totalDeposits += (data.amount || 0);
+                    else if (data.type === 'withdraw') totalWithdrawals += (data.amount || 0);
+                }
+             });
+        } catch (fallbackError) {
+            console.error('Fallback failed:', fallbackError);
+        }
       }
 
       // ใช้ข้อมูลคะแนน/นักเรียนจากแคชกลาง (ลดรอบยิง Firestore ซ้ำ)
