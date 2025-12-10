@@ -278,7 +278,7 @@ const StudentProgressModal = ({ student, grade, subjects, onClose }) => {
   const healthTrend = trendCopy[trendFromDelta(healthDelta.delta)];
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[80] flex items-center justify-center p-3" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-3" onClick={onClose}>
       <div className="bg-[#0b1020] border border-slate-700 rounded-3xl w-full max-w-6xl h-[94vh] flex flex-col shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <header className="p-5 border-b border-slate-700 flex items-center justify-between gap-3 flex-wrap">
           <div>

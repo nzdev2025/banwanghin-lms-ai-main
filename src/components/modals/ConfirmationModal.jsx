@@ -3,7 +3,7 @@ import Icon from '../../icons/Icon';
 
 const ConfirmationModal = ({ onClose, onConfirm, item }) => {
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center">
             <div className="bg-gray-800 border border-red-500/50 rounded-2xl p-6 w-full max-w-md shadow-2xl text-center">
                 <Icon name="AlertTriangle" className="text-red-400 mx-auto mb-4" size={48} />
                 <h3 className="text-xl font-bold mb-2">ยืนยันการลบ</h3>

@@ -128,7 +128,7 @@ const AIQuizSetGeneratorModal = ({ onClose, onApply }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-[96vw] max-w-[1200px] h-[94vh] overflow-hidden rounded-3xl border border-white/15 bg-[#0c142a]/95 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-2">

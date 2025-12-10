@@ -1,7 +1,9 @@
 import React from 'react';
 import Icon from '../../icons/Icon';
+import { useApp } from '../../context/AppContext';
 
-const Header = ({ user, handleLogout }) => {
+const Header = () => {
+  const { user, handleLogout, toggleSidebar } = useApp();
   const displayName = React.useMemo(() => {
     if (!user) return 'ผู้ใช้';
     if (user.displayName) return user.displayName;
@@ -19,14 +21,23 @@ const Header = ({ user, handleLogout }) => {
         <div className="pointer-events-none absolute inset-0 border border-white/5 rounded-b-3xl" />
 
         <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-200 shadow-inner shadow-black/25 backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Welcome back
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleSidebar}
+              className="lg:hidden flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+              aria-label="toggle sidebar"
+            >
+              <Icon name="Menu" size={24} />
+            </button>
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-slate-200 shadow-inner shadow-black/25 backdrop-blur">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                Welcome back
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                สวัสดี, {displayName} 👋
+              </h1>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-              สวัสดี, {displayName} 👋
-            </h1>
           </div>
           <div className="flex items-center gap-3">
             <button

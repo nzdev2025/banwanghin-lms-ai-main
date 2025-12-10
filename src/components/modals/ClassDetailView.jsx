@@ -136,11 +136,11 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
         document.body.removeChild(link);
     };
 
-    if (isLoading) return <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-500" size={48} /></div>;
+    if (isLoading) return <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center"><Icon name="Loader2" className="animate-spin text-teal-500" size={48} /></div>;
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                 <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl shadow-black/50">
                     <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                         <div><h2 className="text-2xl font-bold text-white">{subject.name} - (ป.{grade.replace('p','')})</h2><p className="text-gray-400">ตารางบันทึกคะแนน</p></div>

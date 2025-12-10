@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, auth, onAuthStateChanged, handleLogout } from '../firebase/firebase';
 import { config } from '../config';
@@ -12,6 +12,7 @@ export const AppContextProvider = ({ children }) => {
     const [authLoading, setAuthLoading] = useState(true);
     const [subjects, setSubjects] = useState([]);
     const [modalStack, setModalStack] = useState([]);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     // Subscribe to auth state changes
     useEffect(() => {
@@ -19,7 +20,7 @@ export const AppContextProvider = ({ children }) => {
             setUser(currentUser);
             if (currentUser) {
                 // Mock Role Logic
-                const role = currentUser.email === 'nzappcreator@gmail.com' ? 'admin' : 'teacher';
+                const role = (currentUser.email === 'nzappcreator@gmail.com' || currentUser.email === 'admin@school.ac.th') ? 'admin' : 'teacher';
                 setUserRole(role);
             } else {
                 setUserRole(null);
@@ -41,24 +42,35 @@ export const AppContextProvider = ({ children }) => {
     }, [user]);
 
     // Modal helpers
-    const openModal = (type, data = null) => {
+    const openModal = useCallback((type, data = null) => {
         setModalStack((prev) => [...prev, { type, data }]);
-    };
+    }, []);
 
-    const closeModal = () => {
+    const closeModal = useCallback(() => {
         setModalStack((prev) => prev.slice(0, prev.length - 1));
-    };
+    }, []);
 
-    const value = {
+    const closeAllModals = useCallback(() => {
+        setModalStack([]);
+    }, []);
+
+    const toggleSidebar = useCallback(() => setIsSidebarOpen((prev) => !prev), []);
+    const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
+
+    const value = useMemo(() => ({
         user,
         userRole,
         authLoading,
         subjects,
         modalStack,
+        isSidebarOpen,
         openModal,
         closeModal,
+        closeAllModals,
+        toggleSidebar,
+        closeSidebar,
         handleLogout,
-    };
+    }), [user, userRole, authLoading, subjects, modalStack, isSidebarOpen, openModal, closeModal, closeAllModals, toggleSidebar, closeSidebar]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

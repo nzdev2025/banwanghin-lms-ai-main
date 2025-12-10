@@ -388,7 +388,7 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, tes
 
   return (
     <>
-      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-lg z-50 flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
+      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-lg z-[200] flex items-center justify-center p-3 sm:p-6" onClick={onClose}>
         <div
           className="relative w-full max-w-6xl h-[96vh] bg-gradient-to-br from-[#0c1020] via-[#0b1328] to-[#0b1024] border border-slate-800/70 rounded-3xl shadow-2xl shadow-black/50 overflow-hidden"
           onClick={(e) => e.stopPropagation()}

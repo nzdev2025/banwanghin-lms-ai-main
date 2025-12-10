@@ -36,7 +36,7 @@ const StudentModal = ({ onClose, onSave, initialData = null }) => {
     return (
         // ... (ส่วน JSX ที่เหลือเหมือนเดิม) ...
         // **ข้อเสนอแนะ:** ลบ attribute `required` ออกจาก input ที่ไม่ต้องการบังคับ
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-800 border border-white/20 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-xl font-bold mb-4 text-white">{isEditMode ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่'}</h3>
                 <form onSubmit={handleSubmit}>

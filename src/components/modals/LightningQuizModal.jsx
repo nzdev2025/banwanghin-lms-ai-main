@@ -648,7 +648,7 @@ const LightningQuizModal = ({ onClose }) => {
   };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
         <div
           className="flex h-[97vh] w-[99vw] max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
           onClick={(e) => e.stopPropagation()}

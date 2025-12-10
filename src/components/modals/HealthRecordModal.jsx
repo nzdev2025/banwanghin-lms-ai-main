@@ -182,7 +182,7 @@ const HealthRecordModal = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:bg-white print:block print:p-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 print:bg-white print:block print:p-8">
             <div className="bg-gray-800/80 backdrop-blur-xl border border-rose-500/50 rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl print:hidden" onClick={(e) => e.stopPropagation()}>
                 <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="HeartPulse" />บันทึกข้อมูลสุขภาพ</h2>

@@ -104,7 +104,7 @@ const Pp5GeneratorModal = ({ subjects, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={status === 'idle' || status === 'success' ? onClose : undefined}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={status === 'idle' || status === 'success' ? onClose : undefined}>
             <div className="bg-gray-800/80 backdrop-blur-xl border border-blue-500/50 rounded-2xl w-full max-w-3xl shadow-2xl p-8 text-center" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-3xl font-bold text-white mb-2">สร้างเอกสาร ปพ.5 อัตโนมัติ</h2>
                 <p className="text-lg text-gray-300 mb-8">เลือกชั้นเรียนที่ต้องการส่งออกข้อมูลทั้งหมด</p>

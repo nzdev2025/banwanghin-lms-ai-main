@@ -60,7 +60,7 @@ const ImportStudentsModal = ({ onClose, onImport }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <div className="bg-gray-800 border border-white/20 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
                 <h3 className="text-xl font-bold mb-4">นำเข้ารายชื่อนักเรียนจากไฟล์ CSV</h3>
                 <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm rounded-lg p-3 mb-4">

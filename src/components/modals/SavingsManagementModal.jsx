@@ -46,7 +46,7 @@ const SavingsManagementModal = ({ onClose }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={onClose}>
                 <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-2xl h-[90vh] flex flex-col shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
                     <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="PiggyBank" />ระบบออมทรัพย์นักเรียน</h2>

@@ -128,7 +128,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
     const currentTexts = placeholders[formData.docType];
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4 print:p-8 print:bg-white print:block print-wrapper" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4 print:p-8 print:bg-white print:block print-wrapper" onClick={onClose}>
              {/* --- Main Modal for Screen View --- */}
              <div className="bg-gray-800 border border-purple-500/50 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl shadow-black/50 print:hidden" onClick={(e) => e.stopPropagation()}>
                  <header className="flex items-center justify-between p-4 border-b border-white/10">

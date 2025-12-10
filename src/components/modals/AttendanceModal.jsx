@@ -5,7 +5,7 @@ import AttendanceChecker from '../classroom_tools/AttendanceChecker';
 
 const AttendanceModal = ({ onClose }) => {
     return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-lime-500/50 rounded-3xl w-full max-w-6xl h-[90vh] flex flex-col shadow-[0_25px_80px_-25px_rgba(0,0,0,0.9)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                     <div className="flex items-center gap-3">

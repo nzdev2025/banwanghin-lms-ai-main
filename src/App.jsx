@@ -63,11 +63,17 @@ function AppContent() {
     modalStack,
     openModal,
     closeModal,
-    handleLogout
+    closeAllModals
   } = useApp();
 
   const location = useLocation();
   const isPublicQuizRoute = location.pathname.startsWith('/quiz');
+
+  // Close all modals on route change
+  React.useEffect(() => {
+    closeAllModals();
+  }, [location.pathname, closeAllModals]);
+
   const isPublicAttendanceJoinRoute = location.pathname.startsWith('/attendance/join');
 
   const handleStudentClick = (student, grade) => openModal('studentProfile', { student, grade });
@@ -115,7 +121,7 @@ function AppContent() {
       <div className="flex min-h-screen bg-gradient-to-br from-[#1b1f38] via-[#121629] to-[#0b1020] text-slate-100">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Header user={user} handleLogout={handleLogout} />
+          <Header />
           <main className="flex-1 overflow-hidden">
             <div className="mx-auto w-full max-w-[1400px] px-6 py-6 lg:px-10">
               <div className="flex min-h-full flex-col gap-8">

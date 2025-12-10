@@ -40,7 +40,7 @@ const AIAssignmentGeneratorModal = ({ onClose, onApply }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-800 border border-purple-500/50 rounded-2xl w-full max-w-xl flex flex-col shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
                 <header className="flex items-center justify-between p-4 border-b border-white/10">
                     <div className="flex items-center gap-3">

@@ -29,7 +29,7 @@ const GradeSelectionModal = ({ subject, onSelect, onClose }) => {
     }, [subject.id]);
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-3xl shadow-2xl shadow-black/50 p-8 text-center" onClick={(e) => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                 <h2 className="text-3xl font-bold text-white mb-2">เลือกชั้นเรียนสำหรับวิชา</h2>

@@ -46,6 +46,7 @@ const renderApp = (initialEntries, role) => {
         modalStack: [],
         openModal: vi.fn(),
         closeModal: vi.fn(),
+        closeAllModals: vi.fn(),
         handleLogout: vi.fn()
       }}>
         <SiteConfigContext.Provider value={{ siteConfig: mockSiteConfig }}>
