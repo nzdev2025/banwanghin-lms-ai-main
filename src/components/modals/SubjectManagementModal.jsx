@@ -1,11 +1,22 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { doc, setDoc, addDoc, serverTimestamp, deleteDoc, collection } from 'firebase/firestore';
 import { db, logActivity, appId } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 import SubjectEditForm from './SubjectEditForm';
+import { colorThemes } from '../../constants/theme';
 
-const SubjectManagementModal = ({subjects, onClose}) => {
+const SubjectManagementModal = ({ subjects, onClose }) => {
     const [editingSubject, setEditingSubject] = React.useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredSubjects = useMemo(() => {
+        if (!searchTerm) return subjects;
+        const lowerTerm = searchTerm.toLowerCase();
+        return subjects.filter(sub =>
+            sub.name.toLowerCase().includes(lowerTerm) ||
+            sub.teacherName?.toLowerCase().includes(lowerTerm)
+        );
+    }, [subjects, searchTerm]);
 
     const handleSave = async (subjectData) => {
         if (!db) return;
@@ -30,6 +41,7 @@ const SubjectManagementModal = ({subjects, onClose}) => {
     };
 
     const handleDelete = async (id) => {
+        if (!confirm('คุณต้องการลบวิชานี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
         if (!db) return;
         const subjectToDelete = subjects.find(s => s.id === id);
         if (!subjectToDelete) return;
@@ -47,31 +59,76 @@ const SubjectManagementModal = ({subjects, onClose}) => {
     }
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-            <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl shadow-black/50">
-                <header className="flex items-center justify-between p-4 border-b border-white/10">
-                    <h2 className="text-2xl font-bold text-white">จัดการรายวิชา</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+            <div className="bg-gray-800/90 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-3xl h-[85vh] flex flex-col shadow-2xl shadow-black/50 overflow-hidden">
+                <header className="flex flex-col gap-4 p-6 border-b border-white/10 bg-gray-900/50">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                <Icon name="Settings" className="text-teal-400" />
+                                จัดการรายวิชา
+                            </h2>
+                            <p className="text-sm text-gray-400 mt-1">เพิ่ม ลบ หรือแก้ไขข้อมูลรายวิชาในระบบ</p>
+                        </div>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white transition-transform hover:rotate-90"><Icon name="X" size={28} /></button>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative">
+                        <Icon name="Search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                        <input
+                            type="text"
+                            placeholder="ค้นหาวิชา..."
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:ring-2 focus:ring-teal-500/50 outline-none"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
                 </header>
-                <div className="p-6 flex-grow overflow-y-auto">
-                    <ul className="space-y-3">
-                        {subjects.map(sub => (
-                            <li key={sub.id} className="flex items-center justify-between bg-white/5 p-3 rounded-lg">
-                                <div>
-                                    <p className="font-bold text-white">{sub.name}</p>
-                                    <p className="text-sm text-gray-400">{sub.teacherName}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setEditingSubject(sub)} className="p-2 text-sky-400 hover:bg-sky-500/20 rounded"><Icon name="Pencil" size={18}/></button>
-                                    <button onClick={() => handleDelete(sub.id)} className="p-2 text-red-400 hover:bg-red-500/20 rounded"><Icon name="Trash2" size={18}/></button>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+
+                <div className="p-6 flex-grow overflow-y-auto custom-scrollbar">
+                    {filteredSubjects.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-3">
+                            {filteredSubjects.map(sub => {
+                                const theme = colorThemes[sub.colorTheme] || colorThemes.teal;
+                                return (
+                                    <div key={sub.id} className="group flex items-center justify-between bg-gray-900/40 p-3 rounded-xl border border-white/5 hover:border-white/20 transition-all hover:bg-gray-800">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${theme.bg} text-white shadow-lg`}>
+                                                <Icon name={sub.iconName || 'BookOpen'} size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-white text-lg">{sub.name}</h3>
+                                                <div className="flex items-center gap-3 text-sm text-gray-400">
+                                                    <span className="flex items-center gap-1"><Icon name="User" size={12} /> {sub.teacherName}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-gray-600"></span>
+                                                    <span>{sub.midtermWeight || 70}:{sub.finalWeight || 30}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => setEditingSubject(sub)} className="p-2 text-sky-400 hover:bg-sky-500/20 rounded-lg transition-colors" title="แก้ไข">
+                                                <Icon name="Pencil" size={20} />
+                                            </button>
+                                            <button onClick={() => handleDelete(sub.id)} className="p-2 text-rose-400 hover:bg-rose-500/20 rounded-lg transition-colors" title="ลบ">
+                                                <Icon name="Trash2" size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <Icon name="SearchX" size={48} className="mb-4 opacity-50" />
+                            <p>ไม่พบรายวิชาที่ค้นหา</p>
+                        </div>
+                    )}
                 </div>
-                <footer className="p-4 border-t border-white/10">
-                    <button onClick={() => setEditingSubject({})} className="w-full flex items-center justify-center gap-2 bg-teal-500/80 hover:bg-teal-500 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                        <Icon name="PlusCircle" size={20}/> เพิ่มวิชาใหม่
+
+                <footer className="p-5 border-t border-white/10 bg-gray-900/50">
+                    <button onClick={() => setEditingSubject({})} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-teal-500/20 transition-all transform hover:-translate-y-0.5">
+                        <Icon name="PlusCircle" size={20} /> เพิ่มวิชาใหม่
                     </button>
                 </footer>
             </div>

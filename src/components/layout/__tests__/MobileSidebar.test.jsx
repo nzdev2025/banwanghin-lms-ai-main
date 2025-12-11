@@ -20,6 +20,8 @@ vi.mock('lucide-react', () => ({
   MessageCircle: () => <span data-testid="icon-messagecircle" />,
   Menu: () => <span data-testid="icon-menu" />,
   X: () => <span data-testid="icon-x" />,
+  Bell: () => <span data-testid="icon-bell" />,
+  LogOut: () => <span data-testid="icon-logout" />,
 }));
 
 const mockConfig = {
@@ -34,7 +36,7 @@ describe('Mobile Sidebar & Header Interaction', () => {
   it('Header shows menu button on mobile', () => {
     const toggleSidebar = vi.fn();
     render(
-      <AppContext.Provider value={{ user: { email: 'test@test.com' }, toggleSidebar, handleLogout: () => {} }}>
+      <AppContext.Provider value={{ user: { email: 'test@test.com' }, toggleSidebar, handleLogout: () => { } }}>
         <Header />
       </AppContext.Provider>
     );
@@ -63,11 +65,11 @@ describe('Mobile Sidebar & Header Interaction', () => {
     // Sidebar should have a class indicating it's open (e.g., translate-x-0)
     const sidebar = screen.getByRole('complementary'); // <aside> defaults to complementary
     expect(sidebar.className).not.toContain('-translate-x-full');
-    
+
     // Check for overlay
     const overlay = screen.getByTestId('sidebar-overlay');
     expect(overlay).toBeInTheDocument();
-    
+
     fireEvent.click(overlay);
     expect(closeSidebar).toHaveBeenCalled();
   });
@@ -75,7 +77,7 @@ describe('Mobile Sidebar & Header Interaction', () => {
   it('Sidebar is hidden when closed on mobile', () => {
     render(
       <AppContext.Provider value={{ userRole: 'teacher', isSidebarOpen: false }}>
-         <SiteConfigContext.Provider value={{ siteConfig: mockConfig }}>
+        <SiteConfigContext.Provider value={{ siteConfig: mockConfig }}>
           <MemoryRouter>
             <Sidebar />
           </MemoryRouter>
