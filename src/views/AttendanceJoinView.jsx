@@ -58,6 +58,19 @@ const AttendanceJoinView = () => {
     setIsSubmitting(true);
     try {
       const attendanceRef = doc(db, `artifacts/${appId}/public/data/attendance`, `${grade}-${date}`);
+
+      // ตรวจสอบว่าเช็คชื่อไปแล้วหรือยัง
+      const existingDoc = await getDoc(attendanceRef);
+      if (existingDoc.exists()) {
+        const existingData = existingDoc.data();
+        if (existingData[selectedStudentId]) {
+          const stu = students.find((s) => s.id === selectedStudentId);
+          setMessage(`${stu?.firstName || ''} ${stu?.lastName || ''} เช็คชื่อไปแล้ว`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       await setDoc(attendanceRef, {
         [selectedStudentId]: 'มาเรียน',
         checkedAt: { [selectedStudentId]: serverTimestamp() },

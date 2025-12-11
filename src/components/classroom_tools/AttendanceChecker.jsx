@@ -1,6 +1,6 @@
 // src/components/classroom_tools/AttendanceChecker.jsx (The Absolutely Final Version)
 import React from 'react';
-import { collection, onSnapshot, query, orderBy, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, getDoc, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import Papa from 'papaparse';
 import { db, appId, logActivity } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
@@ -16,6 +16,11 @@ const AttendanceChecker = () => {
     const [qrUrl, setQrUrl] = React.useState('');
 
     const today = new Date().toISOString().slice(0, 10);
+    const [selectedDate, setSelectedDate] = React.useState(today);
+    const [monthlyAbsences, setMonthlyAbsences] = React.useState({});
+
+    // Threshold for frequent absence warning
+    const ABSENCE_THRESHOLD = 4;
 
     const summary = React.useMemo(() => {
         const groups = {
@@ -54,12 +59,12 @@ const AttendanceChecker = () => {
         const unsubscribeStudents = onSnapshot(q, (snapshot) => {
             const studentList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setStudents(studentList);
-            
+
             const initialAttendance = {};
             studentList.forEach(s => { initialAttendance[s.id] = 'มาเรียน'; });
-            
-            const attendanceDocRef = doc(db, `artifacts/${appId}/public/data/attendance`, `${selectedGrade}-${today}`);
-            
+
+            const attendanceDocRef = doc(db, `artifacts/${appId}/public/data/attendance`, `${selectedGrade}-${selectedDate}`);
+
             getDoc(attendanceDocRef)
                 .then(docSnap => {
                     if (docSnap.exists()) {
@@ -81,20 +86,55 @@ const AttendanceChecker = () => {
             setIsLoading(false);
         });
 
-        const sessionRef = doc(db, `artifacts/${appId}/public/data/attendance_sessions`, `${selectedGrade}-${today}`);
+        const sessionRef = doc(db, `artifacts/${appId}/public/data/attendance_sessions`, `${selectedGrade}-${selectedDate}`);
         getDoc(sessionRef).then((sessionSnap) => {
             if (sessionSnap.exists()) {
                 const data = sessionSnap.data();
                 if (data?.token) {
                     setSessionToken(data.token);
-                    const link = `${window.location.origin}/attendance/join/${selectedGrade}/${today}/${data.token}`;
+                    const link = `${window.location.origin}/attendance/join/${selectedGrade}/${selectedDate}/${data.token}`;
                     setQrUrl(`https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(link)}`);
                 }
             }
         });
 
         return () => unsubscribeStudents();
-    }, [selectedGrade, today]);
+    }, [selectedGrade, selectedDate]);
+
+    // Calculate monthly absences for all students
+    React.useEffect(() => {
+        const calculateMonthlyAbsences = async () => {
+            if (!db || !selectedGrade || students.length === 0) return;
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth();
+
+            // Get all attendance docs for this grade in current month
+            const attendanceCollectionRef = collection(db, `artifacts/${appId}/public/data/attendance`);
+            const snapshot = await getDocs(attendanceCollectionRef);
+
+            const absenceCount = {};
+            students.forEach(s => { absenceCount[s.id] = 0; });
+
+            snapshot.docs.forEach(docSnap => {
+                const docId = docSnap.id;
+                // Check if this doc is for the selected grade and current month
+                if (docId.startsWith(`${selectedGrade}-${year}-${String(month + 1).padStart(2, '0')}`)) {
+                    const data = docSnap.data();
+                    Object.entries(data).forEach(([studentId, status]) => {
+                        if (status === 'ขาด' && absenceCount[studentId] !== undefined) {
+                            absenceCount[studentId] += 1;
+                        }
+                    });
+                }
+            });
+
+            setMonthlyAbsences(absenceCount);
+        };
+
+        calculateMonthlyAbsences();
+    }, [selectedGrade, students]);
 
     const handleStatusChange = (studentId, status) => {
         setAttendance(prev => ({ ...prev, [studentId]: status }));
@@ -103,16 +143,16 @@ const AttendanceChecker = () => {
     const handleSaveAndNotify = async () => {
         setIsSaving(true);
         try {
-            const attendanceDocRef = doc(db, `artifacts/${appId}/public/data/attendance`, `${selectedGrade}-${today}`);
+            const attendanceDocRef = doc(db, `artifacts/${appId}/public/data/attendance`, `${selectedGrade}-${selectedDate}`);
             const checkedAt = {};
             students.forEach((s) => { checkedAt[s.id] = serverTimestamp(); });
             await setDoc(attendanceDocRef, { ...attendance, checkedAt }, { merge: true });
-            logActivity('ATTENDANCE_SAVE', `บันทึกการเช็คชื่อชั้น ป.${selectedGrade.replace('p','')} ประจำวันที่ ${today}`);
+            logActivity('ATTENDANCE_SAVE', `บันทึกการเช็คชื่อชั้น ป.${selectedGrade.replace('p', '')} ประจำวันที่ ${selectedDate}`);
 
             const settingsRef = doc(db, `artifacts/${appId}/public/data/line_notify_tokens`, selectedGrade);
             const settingsSnap = await getDoc(settingsRef);
             if (!settingsSnap.exists() || !settingsSnap.data().channelToken || !settingsSnap.data().groupId) {
-                throw new Error(`ยังไม่ได้ตั้งค่า Channel Token และ Group ID สำหรับชั้น ป.${selectedGrade.replace('p','')}`);
+                throw new Error(`ยังไม่ได้ตั้งค่า Channel Token และ Group ID สำหรับชั้น ป.${selectedGrade.replace('p', '')}`);
             }
             const { channelToken, groupId } = settingsSnap.data();
 
@@ -124,25 +164,25 @@ const AttendanceChecker = () => {
                 if (status === 'ขาด') absentees.push(fullName);
                 else if (status === 'ลา') onLeave.push(fullName);
             });
-            
+
             if (absentees.length === 0 && onLeave.length === 0) {
-                 alert('บันทึกข้อมูลเรียบร้อย! (ไม่มีนักเรียนขาดหรือลา จึงไม่ส่งแจ้งเตือน)');
-                 setIsSaving(false);
-                 return;
+                alert('บันทึกข้อมูลเรียบร้อย! (ไม่มีนักเรียนขาดหรือลา จึงไม่ส่งแจ้งเตือน)');
+                setIsSaving(false);
+                return;
             }
 
-            const payload = { grade: selectedGrade, date: today, absentees, onLeave, channelToken, groupId };
+            const payload = { grade: selectedGrade, date: selectedDate, absentees, onLeave, channelToken, groupId };
 
             // **ที่อยู่ของบุรุษไปรษณีย์ Google ที่ถูกต้อง**
             const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzWJyw2wxLufyqbCQnCvFFz2xsA7OH858vK7yC-JTFV8_Qh3NY-pB83zo2yC2kKWOnGSw/exec";
-            
+
             await fetch(appsScriptUrl, {
                 method: "POST",
                 mode: 'no-cors',
                 headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify(payload)
             });
-            
+
             alert('บันทึกข้อมูลและส่งแจ้งเตือนเรียบร้อยแล้ว!');
 
         } catch (error) {
@@ -168,7 +208,7 @@ const AttendanceChecker = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `attendance_${selectedGrade}_${today}.csv`;
+        link.download = `attendance_${selectedGrade}_${selectedDate}.csv`;
         link.click();
         URL.revokeObjectURL(url);
     };
@@ -179,7 +219,7 @@ const AttendanceChecker = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `attendance_${selectedGrade}_${today}.xls`;
+        link.download = `attendance_${selectedGrade}_${selectedDate}.xls`;
         link.click();
         URL.revokeObjectURL(url);
     };
@@ -191,7 +231,7 @@ const AttendanceChecker = () => {
         ).join('');
         const html = `
         <html>
-        <head><title>รายงานเช็คชื่อ ${selectedGrade} ${today}</title>
+        <head><title>รายงานเช็คชื่อ ${selectedGrade} ${selectedDate}</title>
         <style>
           body { font-family: "Sarabun", Arial, sans-serif; padding: 16px; }
           table { width: 100%; border-collapse: collapse; }
@@ -200,7 +240,7 @@ const AttendanceChecker = () => {
         </style>
         </head>
         <body>
-          <h3>บันทึกการมาเรียน ชั้น ป.${selectedGrade.replace('p','')} ประจำวันที่ ${today}</h3>
+          <h3>บันทึกการมาเรียน ชั้น ป.${selectedGrade.replace('p', '')} ประจำวันที่ ${selectedDate}</h3>
           <table>
             <thead><tr><th>#</th><th>เลขที่</th><th>ชื่อ</th><th>เพศ</th><th>สถานะ</th></tr></thead>
             <tbody>${tableRows}</tbody>
@@ -215,7 +255,7 @@ const AttendanceChecker = () => {
             w.print();
         }
     };
-    
+
     const statusOptions = {
         'มาเรียน': { label: 'มาเรียน', icon: 'Check', color: 'bg-green-500/20 text-green-300', ring: 'ring-green-500' },
         'ขาด': { label: 'ขาด', icon: 'X', color: 'bg-red-500/20 text-red-300', ring: 'ring-red-500' },
@@ -226,9 +266,9 @@ const AttendanceChecker = () => {
     const generateSession = async () => {
         if (!db) return;
         const token = Math.random().toString(36).slice(2, 10);
-        const sessionRef = doc(db, `artifacts/${appId}/public/data/attendance_sessions`, `${selectedGrade}-${today}`);
-        const link = `${window.location.origin}/attendance/join/${selectedGrade}/${today}/${token}`;
-        await setDoc(sessionRef, { token, grade: selectedGrade, date: today, createdAt: serverTimestamp() });
+        const sessionRef = doc(db, `artifacts/${appId}/public/data/attendance_sessions`, `${selectedGrade}-${selectedDate}`);
+        const link = `${window.location.origin}/attendance/join/${selectedGrade}/${selectedDate}/${token}`;
+        await setDoc(sessionRef, { token, grade: selectedGrade, date: selectedDate, createdAt: serverTimestamp() });
         setSessionToken(token);
         setQrUrl(`https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(link)}`);
     };
@@ -237,44 +277,51 @@ const AttendanceChecker = () => {
         <div className="flex flex-col h-full gap-4">
             <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-slate-900/80 via-slate-900/50 to-slate-900/80 p-5 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-emerald-500/30">A</div>
-                    <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-slate-400">เช็คชื่อรายชั้น</p>
-                        <p className="text-2xl font-extrabold text-white">ชั้น ป.{selectedGrade.replace('p','')}</p>
-                        <p className="text-sm text-slate-400">วันที่ {today}</p>
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-black font-bold text-xl shadow-lg shadow-emerald-500/30">A</div>
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">เช็คชื่อรายชั้น</p>
+                            <p className="text-2xl font-extrabold text-white">ชั้น ป.{selectedGrade.replace('p', '')}</p>
+                            <p className="text-sm text-slate-400">วันที่ {selectedDate}</p>
+                        </div>
                     </div>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                    <select 
-                        value={selectedGrade}
-                        onChange={e => setSelectedGrade(e.target.value)}
-                        data-testid="grade-select"
-                        className="bg-slate-900 border border-white/20 rounded-xl px-3 py-2 text-slate-100 shadow-inner focus:border-emerald-300 focus:outline-none"
-                    >
-                        {grades.map((g, i) => (
-                            <option key={g} value={g} className="bg-slate-900 text-slate-100">
-                                ประถมศึกษาปีที่ {i+1}
-                            </option>
-                        ))}
-                    </select>
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-2 py-1">
-                        <button onClick={handleExportCsv} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
-                            <Icon name="Download" size={14}/> CSV
-                        </button>
-                        <button onClick={handleExportXls} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
-                            <Icon name="Download" size={14}/> XLS
-                        </button>
-                        <button onClick={handlePrint} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
-                            <Icon name="Printer" size={14}/> พิมพ์
-                        </button>
-                    </div>
-                    <button 
-                        onClick={handleSaveAndNotify}
-                        disabled={isSaving || isLoading || students.length === 0}
-                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-400 to-green-500 hover:opacity-90 text-black font-bold py-3 px-5 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-wait shadow-lg shadow-emerald-500/30"
-                    >
-                            <Icon name="Send" size={20}/>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <select
+                            value={selectedGrade}
+                            onChange={e => setSelectedGrade(e.target.value)}
+                            data-testid="grade-select"
+                            className="bg-slate-900 border border-white/20 rounded-xl px-3 py-2 text-slate-100 shadow-inner focus:border-emerald-300 focus:outline-none"
+                        >
+                            {grades.map((g, i) => (
+                                <option key={g} value={g} className="bg-slate-900 text-slate-100">
+                                    ประถมศึกษาปีที่ {i + 1}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={e => setSelectedDate(e.target.value)}
+                            data-testid="date-picker"
+                            className="bg-slate-900 border border-white/20 rounded-xl px-3 py-2 text-slate-100 shadow-inner focus:border-emerald-300 focus:outline-none"
+                        />
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-2 py-1">
+                            <button onClick={handleExportCsv} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
+                                <Icon name="Download" size={14} /> CSV
+                            </button>
+                            <button onClick={handleExportXls} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
+                                <Icon name="Download" size={14} /> XLS
+                            </button>
+                            <button onClick={handlePrint} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
+                                <Icon name="Printer" size={14} /> พิมพ์
+                            </button>
+                        </div>
+                        <button
+                            onClick={handleSaveAndNotify}
+                            disabled={isSaving || isLoading || students.length === 0}
+                            className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-400 to-green-500 hover:opacity-90 text-black font-bold py-3 px-5 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-wait shadow-lg shadow-emerald-500/30"
+                        >
+                            <Icon name="Send" size={20} />
                             {isSaving ? 'กำลังบันทึก...' : 'บันทึกและแจ้งเตือนผู้ปกครอง'}
                         </button>
                     </div>
@@ -285,79 +332,89 @@ const AttendanceChecker = () => {
                 {isLoading ? (
                     <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-lime-400" size={48} /></div>
                 ) : (
-                <>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-                        <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-sky-500/10 p-4 flex flex-col gap-3 shadow-inner shadow-black/40">
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <Icon name="QrCode" className="text-emerald-300" />
-                                    <p className="font-bold text-white">QR เช็คชื่อ (นักเรียน)</p>
-                                </div>
-                                <button onClick={generateSession} className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30">
-                                    {sessionToken ? 'สร้างใหม่' : 'สร้าง QR'}
-                                </button>
-                            </div>
-                            {qrUrl ? (
-                                <div className="flex items-center gap-3">
-                                    <img src={qrUrl} alt="Attendance QR" className="w-28 h-28 rounded-xl border border-white/10 bg-white p-2" />
-                                    <div className="text-xs text-slate-200 break-all leading-relaxed">
-                                        ส่งลิงก์ให้เด็ก:<br />
-                                        <span className="text-sky-300">{window.location.origin}/attendance/join/{selectedGrade}/{today}/{sessionToken}</span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <p className="text-sm text-slate-400">กดสร้าง QR เพื่อให้นักเรียนสแกนเช็คชื่อ</p>
-                            )}
-                        </div>
-                        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {summaryCards.map((card) => (
-                            <div key={card.title} className={`rounded-xl border border-white/10 ${card.bg} p-3 flex items-center gap-3 shadow-lg shadow-black/20`}>
-                                <span className="p-2 rounded-lg bg-white/10"><Icon name={card.icon} className={card.color.replace('text','text')} /></span>
-                                <div>
-                                    <p className="text-xs text-slate-400">{card.title}</p>
-                                    <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
-                                </div>
-                            </div>
-                        ))}
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col gap-1 shadow-lg shadow-black/20">
-                            <p className="text-xs text-slate-400">สรุปชาย/หญิง</p>
-                            <p className="text-sm text-white">ชาย {summary.groups.male.count || 0} (มา {summary.groups.male['มาเรียน'] || 0}, ขาด {summary.groups.male['ขาด'] || 0})</p>
-                            <p className="text-sm text-white">หญิง {summary.groups.female.count || 0} (มา {summary.groups.female['มาเรียน'] || 0}, ขาด {summary.groups.female['ขาด'] || 0})</p>
-                        </div>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                        {students.map(student => (
-                            <div key={student.id} className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg shadow-black/30">
+                    <>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+                            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-sky-500/10 p-4 flex flex-col gap-3 shadow-inner shadow-black/40">
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
-                                        <span className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-sm font-bold text-white">{student.studentNumber || '?'}</span>
-                                        <div>
-                                            <p className="font-bold text-white truncate">{student.firstName} {student.lastName}</p>
-                                            <p className="text-xs text-slate-400">{student.gender || '-'}</p>
+                                        <Icon name="QrCode" className="text-emerald-300" />
+                                        <p className="font-bold text-white">QR เช็คชื่อ (นักเรียน)</p>
+                                    </div>
+                                    <button onClick={generateSession} className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30">
+                                        {sessionToken ? 'สร้างใหม่' : 'สร้าง QR'}
+                                    </button>
+                                </div>
+                                {qrUrl ? (
+                                    <div className="flex items-center gap-3">
+                                        <img src={qrUrl} alt="Attendance QR" className="w-28 h-28 rounded-xl border border-white/10 bg-white p-2" />
+                                        <div className="text-xs text-slate-200 break-all leading-relaxed">
+                                            ส่งลิงก์ให้เด็ก:<br />
+                                            <span className="text-sky-300">{window.location.origin}/attendance/join/{selectedGrade}/{today}/{sessionToken}</span>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-1">
-                                    {Object.keys(statusOptions).map(status => {
-                                        const option = statusOptions[status];
-                                        const isActive = attendance[student.id] === status;
-                                        return (
-                                            <button
-                                                key={status}
-                                                onClick={() => handleStatusChange(student.id, status)}
-                                                className={`p-2 rounded-md transition-all text-xs ${option.color} ${isActive ? `ring-2 ${option.ring} scale-[1.03]` : 'opacity-50 hover:opacity-100'}`}
-                                                title={option.label}
-                                            >
-                                                <Icon name={option.icon} size={16} className="mx-auto" />
-                                            </button>
-                                        );
-                                    })}
+                                ) : (
+                                    <p className="text-sm text-slate-400">กดสร้าง QR เพื่อให้นักเรียนสแกนเช็คชื่อ</p>
+                                )}
+                            </div>
+                            <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {summaryCards.map((card) => (
+                                    <div key={card.title} className={`rounded-xl border border-white/10 ${card.bg} p-3 flex items-center gap-3 shadow-lg shadow-black/20`}>
+                                        <span className="p-2 rounded-lg bg-white/10"><Icon name={card.icon} className={card.color.replace('text', 'text')} /></span>
+                                        <div>
+                                            <p className="text-xs text-slate-400">{card.title}</p>
+                                            <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col gap-1 shadow-lg shadow-black/20">
+                                    <p className="text-xs text-slate-400">สรุปชาย/หญิง</p>
+                                    <p className="text-sm text-white">ชาย {summary.groups.male.count || 0} (มา {summary.groups.male['มาเรียน'] || 0}, ขาด {summary.groups.male['ขาด'] || 0})</p>
+                                    <p className="text-sm text-white">หญิง {summary.groups.female.count || 0} (มา {summary.groups.female['มาเรียน'] || 0}, ขาด {summary.groups.female['ขาด'] || 0})</p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                            {students.map(student => (
+                                <div key={student.id} className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg shadow-black/30">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center text-sm font-bold text-white">{student.studentNumber || '?'}</span>
+                                            <div>
+                                                <p className="font-bold text-white truncate">{student.firstName} {student.lastName}</p>
+                                                <p className="text-xs text-slate-400">{student.gender || '-'}</p>
+                                            </div>
+                                        </div>
+                                        {monthlyAbsences[student.id] >= ABSENCE_THRESHOLD && (
+                                            <span
+                                                data-testid="absence-warning-badge"
+                                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 text-xs font-bold"
+                                                title={`ขาดแล้ว ${monthlyAbsences[student.id]} วันในเดือนนี้`}
+                                            >
+                                                <Icon name="AlertTriangle" size={12} />
+                                                ขาดบ่อย
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-1">
+                                        {Object.keys(statusOptions).map(status => {
+                                            const option = statusOptions[status];
+                                            const isActive = attendance[student.id] === status;
+                                            return (
+                                                <button
+                                                    key={status}
+                                                    onClick={() => handleStatusChange(student.id, status)}
+                                                    className={`p-2 rounded-md transition-all text-xs ${option.color} ${isActive ? `ring-2 ${option.ring} scale-[1.03]` : 'opacity-50 hover:opacity-100'}`}
+                                                    title={option.label}
+                                                >
+                                                    <Icon name={option.icon} size={16} className="mx-auto" />
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
         </div>

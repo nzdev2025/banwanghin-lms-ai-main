@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserCog, BellRing, BookUp, Eraser } from 'lucide-react';
+import { UserCog, BellRing, BookUp, Eraser, BarChart3 } from 'lucide-react';
 
 const SettingsCard = ({ icon, title, description, onClick }) => (
   <div
@@ -36,6 +36,12 @@ const SettingsView = ({ openModal }) => {
       title: 'ตั้งค่าวิชา',
       description: 'จัดการรายวิชาทั้งหมดที่เปิดสอน',
       action: () => openModal('manageSubjects'),
+    },
+    {
+      icon: <BarChart3 size={24} className="text-violet-400" />,
+      title: 'รายงานเช็คชื่อรายเดือน',
+      description: 'ดูสถิติการมาเรียนของนักเรียนแต่ละเดือน',
+      action: () => openModal('attendanceReport'),
     },
     {
       icon: <Eraser size={24} className="text-rose-400" />,

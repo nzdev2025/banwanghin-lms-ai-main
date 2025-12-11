@@ -46,6 +46,7 @@ import AILessonPlanGeneratorModal from './components/modals/AILessonPlanGenerato
 import ResetAssignmentsModal from './components/modals/ResetAssignmentsModal';
 import StudentProgressModal from './components/modals/StudentProgressModal';
 import SiteEditorModal from './components/modals/SiteEditorModal';
+import AttendanceReportModal from './components/modals/AttendanceReportModal';
 
 // Loading Component
 const PageLoader = () => (
@@ -177,6 +178,8 @@ function AppContent() {
         switch (modal.type) {
           case 'manageAttendance':
             return <AttendanceModal key={index} onClose={closeModal} />;
+          case 'attendanceReport':
+            return <AttendanceReportModal key={index} onClose={closeModal} />;
           case 'lineNotifySettings':
             return <LineNotifySettingsModal key={index} onClose={closeModal} />;
           case 'selectGrade':
