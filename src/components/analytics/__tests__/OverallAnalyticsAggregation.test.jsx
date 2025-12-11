@@ -4,45 +4,54 @@ import { vi, describe, test, expect, beforeEach } from 'vitest';
 import OverallAnalytics from '../OverallAnalytics';
 import { getAggregateFromServer, sum, collectionGroup, query, where, getDocs } from 'firebase/firestore';
 import { useStudentPerformanceData } from '../../../hooks/useStudentPerformanceData';
+import { AppContext } from '../../../context/AppContext';
 
 // Mock Firebase
 vi.mock('../../../firebase/firebase', () => ({
-  db: {},
-  appId: 'test-app',
+    db: {},
+    appId: 'test-app',
 }));
 
 vi.mock('firebase/firestore', () => ({
-  collectionGroup: vi.fn(),
-  query: vi.fn(),
-  where: vi.fn(),
-  getAggregateFromServer: vi.fn(),
-  sum: vi.fn(),
-  getDocs: vi.fn(),
-  collection: vi.fn(),
-  orderBy: vi.fn(),
-  limit: vi.fn(),
-  onSnapshot: vi.fn(() => () => {}),
+    collectionGroup: vi.fn(),
+    query: vi.fn(),
+    where: vi.fn(),
+    getAggregateFromServer: vi.fn(),
+    sum: vi.fn(),
+    getDocs: vi.fn(),
+    collection: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn(),
+    onSnapshot: vi.fn(() => () => { }),
 }));
 
 // Mock Hook
 vi.mock('../../../hooks/useStudentPerformanceData', () => ({
-  useStudentPerformanceData: vi.fn(),
+    useStudentPerformanceData: vi.fn(),
 }));
 
 // Mock Chart Components
-vi.mock('../KeyMetricCard', () => ({ 
-    default: ({ title, value }) => <div data-testid="metric-card">{title}: {value}</div> 
+vi.mock('../KeyMetricCard', () => ({
+    default: ({ title, value }) => <div data-testid="metric-card">{title}: {value}</div>
 }));
 vi.mock('../SavingsGlowChart', () => ({ default: () => <div>SavingsGlowChart</div> }));
 vi.mock('../SubjectPerformanceChart', () => ({ default: () => <div>SubjectPerformanceChart</div> }));
 vi.mock('../dashboard/AtRiskStudents', () => ({ default: () => <div>AtRiskStudents</div> }));
 vi.mock('../dashboard/TopStudentsLeaderboard', () => ({ default: () => <div>TopStudentsLeaderboard</div> }));
 vi.mock('../dashboard/RecentActivityFeed', () => ({ default: () => <div>RecentActivityFeed</div> }));
+vi.mock('../dashboard/AttendanceSummaryCard', () => ({ default: () => <div>AttendanceSummaryCard</div> }));
 
 describe('OverallAnalytics Aggregation', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        
+
+        // Mock ResizeObserver
+        window.ResizeObserver = class ResizeObserver {
+            observe() { }
+            unobserve() { }
+            disconnect() { }
+        };
+
         // Mock Hook Return
         useStudentPerformanceData.mockReturnValue({
             students: new Map(),
@@ -61,15 +70,19 @@ describe('OverallAnalytics Aggregation', () => {
             .mockResolvedValueOnce({ // Second call: Withdrawals
                 data: () => ({ total: 2000 })
             });
-        
-        render(<OverallAnalytics subjects={[]} onStudentClick={() => {}} />);
-        
+
+        render(
+            <AppContext.Provider value={{ openModal: vi.fn() }}>
+                <OverallAnalytics subjects={[]} onStudentClick={() => { }} />
+            </AppContext.Provider>
+        );
+
         // Wait for stats update
         await waitFor(() => {
             // Check for Deposit value in the mocked KeyMetricCard
             expect(screen.getByText('ยอดเงินฝากทั้งหมด: 10,000 ฿')).toBeInTheDocument();
         });
-        
+
         // Verify aggregation calls
         expect(collectionGroup).toHaveBeenCalledWith(expect.anything(), 'transactions');
         expect(query).toHaveBeenCalled();
@@ -90,12 +103,16 @@ describe('OverallAnalytics Aggregation', () => {
             { ref: { path: 'other/path' }, data: () => ({ type: 'deposit', amount: 9999 }) }, // Should be ignored by path check? 
             // Wait, my code does `if (doc.ref.path.includes('/savings/'))`
         ];
-        
+
         getDocs.mockResolvedValue({
             forEach: (cb) => mockDocs.forEach(cb)
         });
 
-        render(<OverallAnalytics subjects={[]} onStudentClick={() => {}} />);
+        render(
+            <AppContext.Provider value={{ openModal: vi.fn() }}>
+                <OverallAnalytics subjects={[]} onStudentClick={() => { }} />
+            </AppContext.Provider>
+        );
 
         // Wait for stats update
         await waitFor(() => {

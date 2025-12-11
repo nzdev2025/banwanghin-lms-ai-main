@@ -57,9 +57,9 @@ const DashboardView = () => {
       {/* Announcement Banner */}
       {siteConfig.announcement?.enabled && siteConfig.announcement?.message && (
         <div className={`relative z-20 flex items-start gap-3 rounded-xl border p-4 ${siteConfig.announcement.type === 'error' ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' :
-            siteConfig.announcement.type === 'warning' ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' :
-              siteConfig.announcement.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
-                'border-sky-500/30 bg-sky-500/10 text-sky-200'
+          siteConfig.announcement.type === 'warning' ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' :
+            siteConfig.announcement.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' :
+              'border-sky-500/30 bg-sky-500/10 text-sky-200'
           }`}>
           <Icon name={
             siteConfig.announcement.type === 'error' ? 'AlertCircle' :

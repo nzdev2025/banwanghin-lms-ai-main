@@ -24,7 +24,7 @@ const KeyMetricCard = ({
 
   return (
     <div
-      className={`group relative flex min-h-[130px] min-w-[220px] flex-col justify-between overflow-hidden rounded-2xl border border-white/12 px-6 py-5 text-white shadow-[0_22px_42px_-30px_rgba(8,10,26,0.78)] transition-transform duration-300 hover:-translate-y-1.5 ${gradient}`}
+      className={`group relative flex min-h-[110px] min-w-[200px] flex-col justify-between overflow-hidden rounded-2xl border border-white/12 px-5 py-4 text-white shadow-[0_22px_42px_-30px_rgba(8,10,26,0.78)] transition-transform duration-300 hover:-translate-y-1.5 ${gradient}`}
     >
       <div className="pointer-events-none absolute inset-0 bg-slate-950/25 transition-opacity duration-300 group-hover:bg-slate-950/15" />
       <div className="pointer-events-none absolute inset-0">

@@ -9,6 +9,8 @@ import SubjectPerformanceChart from './SubjectPerformanceChart';
 import AtRiskStudents from '../dashboard/AtRiskStudents';
 import TopStudentsLeaderboard from '../dashboard/TopStudentsLeaderboard';
 import RecentActivityFeed from '../dashboard/RecentActivityFeed';
+import QuickActionsWidget from '../dashboard/QuickActionsWidget';
+import AttendanceSummaryCard from '../dashboard/AttendanceSummaryCard';
 
 const OverallAnalytics = ({ subjects, onStudentClick }) => {
   const [stats, setStats] = React.useState({
@@ -46,19 +48,19 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
       } catch (error) {
         console.warn('Aggregation failed (likely missing index), falling back to client-side calculation:', error);
         try {
-             const transactionsQuery = collectionGroup(db, 'transactions');
-             const querySnapshot = await getDocs(transactionsQuery);
-             
-             querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                // Simple safety check if it belongs to savings
-                if (doc.ref.path.includes('/savings/')) {
-                    if (data.type === 'deposit') totalDeposits += (data.amount || 0);
-                    else if (data.type === 'withdraw') totalWithdrawals += (data.amount || 0);
-                }
-             });
+          const transactionsQuery = collectionGroup(db, 'transactions');
+          const querySnapshot = await getDocs(transactionsQuery);
+
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            // Simple safety check if it belongs to savings
+            if (doc.ref.path.includes('/savings/')) {
+              if (data.type === 'deposit') totalDeposits += (data.amount || 0);
+              else if (data.type === 'withdraw') totalWithdrawals += (data.amount || 0);
+            }
+          });
         } catch (fallbackError) {
-            console.error('Fallback failed:', fallbackError);
+          console.error('Fallback failed:', fallbackError);
         }
       }
 
@@ -176,7 +178,10 @@ const OverallAnalytics = ({ subjects, onStudentClick }) => {
             isLoading={stats.isLoading}
           />
         ))}
+        <AttendanceSummaryCard />
       </div>
+
+      <QuickActionsWidget />
 
       <div className="grid flex-none gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <SavingsGlowChart />
