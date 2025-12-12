@@ -6,6 +6,7 @@ import { grades } from '../../constants/data';
 import { useSiteConfig } from '../../context/SiteConfigContext';
 import Icon from '../../icons/Icon';
 import Papa from 'papaparse';
+import { useToast } from '../../context/ToastContext';
 
 // --- UPGRADED UTILITY FUNCTIONS ---
 
@@ -79,6 +80,7 @@ const getDetailedGrowthStatus = (gender, ageInYears, weight, height) => {
 
 const HealthRecordModal = ({ onClose }) => {
     const { siteConfig } = useSiteConfig();
+    const toast = useToast();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [students, setStudents] = React.useState([]);
     const [healthData, setHealthData] = React.useState({});
@@ -141,10 +143,10 @@ const HealthRecordModal = ({ onClose }) => {
 
             await batch.commit();
             logActivity('HEALTH_RECORD_SAVE', `บันทึกข้อมูลสุขภาพ ป.${selectedGrade.replace('p', '')} ปีการศึกษา ${currentYear} เทอม ${term.replace('term', '')}`);
-            alert('บันทึกข้อมูลเรียบร้อย!');
+            toast.success('บันทึกข้อมูลเรียบร้อย!');
         } catch (error) {
             console.error("Error saving health data:", error);
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setIsSaving(false);
         }
@@ -206,8 +208,8 @@ const HealthRecordModal = ({ onClose }) => {
                             data-testid="health-term1"
                             onClick={() => setTerm('term1')}
                             className={`px-3 py-1 text-xs rounded-full border transition ${term === 'term1'
-                                    ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
-                                    : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
+                                ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
+                                : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
                                 }`}
                         >
                             เทอม 1
@@ -217,8 +219,8 @@ const HealthRecordModal = ({ onClose }) => {
                             data-testid="health-term2"
                             onClick={() => setTerm('term2')}
                             className={`px-3 py-1 text-xs rounded-full border transition ${term === 'term2'
-                                    ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
-                                    : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
+                                ? 'bg-rose-500 text-white border-rose-200 shadow-[0_0_0_2px_rgba(244,114,182,0.35)]'
+                                : 'bg-white/10 text-rose-200 border-rose-200/50 hover:bg-white/20'
                                 }`}
                         >
                             เทอม 2

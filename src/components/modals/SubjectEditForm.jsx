@@ -3,6 +3,7 @@ import React from 'react';
 import { colorThemes } from '../../constants/theme';
 import Icon from '../../icons/Icon';
 import ClassCard from '../shared/ClassCard';
+import { useToast } from '../../context/ToastContext';
 
 // Available icons for selection
 // Available icons for selection
@@ -26,6 +27,7 @@ const AVAILABLE_ICONS = [
 ];
 
 const SubjectEditForm = ({ subject, onSave, onCancel }) => {
+    const toast = useToast();
     const [formData, setFormData] = React.useState({
         name: subject.name || '',
         teacherName: subject.teacherName || '',
@@ -45,7 +47,7 @@ const SubjectEditForm = ({ subject, onSave, onCancel }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (formData.midtermWeight + formData.finalWeight !== 100) {
-            alert('สัดส่วนคะแนนระหว่างภาคและปลายภาคต้องรวมกันได้ 100 คะแนนพอดีครับ');
+            toast.warning('สัดส่วนคะแนนระหว่างภาคและปลายภาคต้องรวมกันได้ 100 คะแนนพอดีครับ');
             return;
         }
         onSave({ ...formData, id: subject.id });

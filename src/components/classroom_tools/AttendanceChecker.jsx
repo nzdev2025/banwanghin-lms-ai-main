@@ -5,8 +5,11 @@ import Papa from 'papaparse';
 import { db, appId, logActivity } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
+import AttendanceReportModal from '../modals/AttendanceReportModal';
+import { useToast } from '../../context/ToastContext';
 
 const AttendanceChecker = () => {
+    const toast = useToast();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [students, setStudents] = React.useState([]);
     const [attendance, setAttendance] = React.useState({});
@@ -14,6 +17,7 @@ const AttendanceChecker = () => {
     const [isSaving, setIsSaving] = React.useState(false);
     const [sessionToken, setSessionToken] = React.useState('');
     const [qrUrl, setQrUrl] = React.useState('');
+    const [showReportModal, setShowReportModal] = React.useState(false);
 
     const today = new Date().toISOString().slice(0, 10);
     const [selectedDate, setSelectedDate] = React.useState(today);
@@ -152,7 +156,10 @@ const AttendanceChecker = () => {
             const settingsRef = doc(db, `artifacts/${appId}/public/data/line_notify_tokens`, selectedGrade);
             const settingsSnap = await getDoc(settingsRef);
             if (!settingsSnap.exists() || !settingsSnap.data().channelToken || !settingsSnap.data().groupId) {
-                throw new Error(`ยังไม่ได้ตั้งค่า Channel Token และ Group ID สำหรับชั้น ป.${selectedGrade.replace('p', '')}`);
+                // ไม่มี LINE token - บันทึกสำเร็จแต่ไม่ส่งแจ้งเตือน
+                toast.success('บันทึกข้อมูลเรียบร้อย! (ยังไม่ได้ตั้งค่า LINE)');
+                setIsSaving(false);
+                return;
             }
             const { channelToken, groupId } = settingsSnap.data();
 
@@ -166,7 +173,7 @@ const AttendanceChecker = () => {
             });
 
             if (absentees.length === 0 && onLeave.length === 0) {
-                alert('บันทึกข้อมูลเรียบร้อย! (ไม่มีนักเรียนขาดหรือลา จึงไม่ส่งแจ้งเตือน)');
+                toast.success('บันทึกข้อมูลเรียบร้อย! (ไม่มีนักเรียนขาดหรือลา)');
                 setIsSaving(false);
                 return;
             }
@@ -183,11 +190,11 @@ const AttendanceChecker = () => {
                 body: JSON.stringify(payload)
             });
 
-            alert('บันทึกข้อมูลและส่งแจ้งเตือนเรียบร้อยแล้ว!');
+            toast.success('บันทึกข้อมูลและส่งแจ้งเตือนเรียบร้อยแล้ว!');
 
         } catch (error) {
             console.error("Error saving attendance and notifying:", error);
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setIsSaving(false);
         }
@@ -315,6 +322,13 @@ const AttendanceChecker = () => {
                             <button onClick={handlePrint} className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200">
                                 <Icon name="Printer" size={14} /> พิมพ์
                             </button>
+                            <button
+                                onClick={() => setShowReportModal(true)}
+                                className="flex items-center gap-1 text-xs px-3 py-2 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-200"
+                                data-testid="monthly-report-button"
+                            >
+                                <Icon name="BarChart3" size={14} /> สถิติ
+                            </button>
                         </div>
                         <button
                             onClick={handleSaveAndNotify}
@@ -349,7 +363,7 @@ const AttendanceChecker = () => {
                                         <img src={qrUrl} alt="Attendance QR" className="w-28 h-28 rounded-xl border border-white/10 bg-white p-2" />
                                         <div className="text-xs text-slate-200 break-all leading-relaxed">
                                             ส่งลิงก์ให้เด็ก:<br />
-                                            <span className="text-sky-300">{window.location.origin}/attendance/join/{selectedGrade}/{today}/{sessionToken}</span>
+                                            <span className="text-sky-300">{window.location.origin}/attendance/join/{selectedGrade}/{selectedDate}/{sessionToken}</span>
                                         </div>
                                     </div>
                                 ) : (
@@ -417,6 +431,13 @@ const AttendanceChecker = () => {
                     </>
                 )}
             </div>
+            {showReportModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-900 rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-auto">
+                        <AttendanceReportModal onClose={() => setShowReportModal(false)} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

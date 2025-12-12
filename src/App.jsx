@@ -6,6 +6,9 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { AppContextProvider, useApp } from './context/AppContext';
 import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext';
+import { ToastProvider } from './context/ToastContext';
+import Toast from './components/shared/Toast';
+import NetworkStatus from './components/shared/NetworkStatus';
 
 // Layout
 import Header from './components/layout/Header';
@@ -258,7 +261,11 @@ function App() {
   return (
     <AppContextProvider>
       <SiteConfigProvider>
-        <AppContent />
+        <ToastProvider>
+          <NetworkStatus />
+          <AppContent />
+          <Toast />
+        </ToastProvider>
       </SiteConfigProvider>
     </AppContextProvider>
   );

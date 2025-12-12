@@ -10,6 +10,9 @@ import AIAssignmentGeneratorModal from '../AIAssignmentGeneratorModal';
 import StudentProfileModal from '../StudentProfileModal';
 import StudentProgressModal from '../StudentProgressModal';
 import SavingsReportModal from '../SavingsReportModal';
+import { ToastProvider } from '../../../context/ToastContext';
+
+const renderWithProviders = (ui) => render(<ToastProvider>{ui}</ToastProvider>);
 
 // Mock required props
 const mockOnClose = vi.fn();
@@ -72,7 +75,7 @@ vi.mock('../../../context/SiteConfigContext', () => ({
 
 describe('Modal Z-Index Tests', () => {
   test('StudentModal should have z-[200]', () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StudentModal onClose={mockOnClose} onSave={mockOnSave} />
     );
     const modalContainer = container.querySelector('.fixed');
@@ -92,13 +95,13 @@ describe('Modal Z-Index Tests', () => {
   });
 
   test('AIWorksheetGeneratorModal should have z-[200]', () => {
-    const { container } = render(<AIWorksheetGeneratorModal onClose={mockOnClose} />);
+    const { container } = renderWithProviders(<AIWorksheetGeneratorModal onClose={mockOnClose} />);
     const modalContainer = container.querySelector('.fixed');
     expect(modalContainer.className).toContain('z-[200]');
   });
 
   test('AILessonPlanGeneratorModal should have z-[200]', () => {
-    const { container } = render(<AILessonPlanGeneratorModal onClose={mockOnClose} />);
+    const { container } = renderWithProviders(<AILessonPlanGeneratorModal onClose={mockOnClose} />);
     const modalContainer = container.querySelector('.fixed');
     expect(modalContainer.className).toContain('z-[200]');
   });
@@ -124,7 +127,7 @@ describe('Modal Z-Index Tests', () => {
       birthDate: '2015-01-01',
       gender: 'male'
     };
-    const { container } = render(
+    const { container } = renderWithProviders(
       <StudentProfileModal
         student={mockStudent}
         grade="p1"
@@ -152,7 +155,7 @@ describe('Modal Z-Index Tests', () => {
   });
 
   test('SavingsReportModal should have z-[250]', () => {
-    const { container } = render(<SavingsReportModal onClose={mockOnClose} />);
+    const { container } = renderWithProviders(<SavingsReportModal onClose={mockOnClose} />);
     const modalContainer = container.querySelector('.fixed');
     expect(modalContainer.className).toContain('z-[250]');
   });

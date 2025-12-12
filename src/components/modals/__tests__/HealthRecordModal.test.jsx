@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import HealthRecordModal from '../HealthRecordModal';
+import { ToastProvider } from '../../../context/ToastContext';
 
 vi.mock('../../../firebase/firebase', () => ({
   db: null,
@@ -24,14 +25,14 @@ vi.mock('../../../context/SiteConfigContext', () => ({
 
 describe('HealthRecordModal', () => {
   it('renders correctly with dynamic school name', () => {
-    render(<HealthRecordModal onClose={() => { }} />);
+    render(<ToastProvider><HealthRecordModal onClose={() => { }} /></ToastProvider>);
     expect(screen.getByText(/บันทึกข้อมูลสุขภาพ/i)).toBeInTheDocument();
     // This assertion ensures we are using the config, it should fail if hardcoded (which is "โรงเรียนบ้านวังหิน")
     expect(screen.getByText(/Test School Health/i)).toBeInTheDocument();
   });
 
   it('shows highlighted term button clearly against background', async () => {
-    render(<HealthRecordModal onClose={() => { }} />);
+    render(<ToastProvider><HealthRecordModal onClose={() => { }} /></ToastProvider>);
     const term1 = await screen.findByTestId('health-term1');
     const term2 = screen.getByTestId('health-term2');
 

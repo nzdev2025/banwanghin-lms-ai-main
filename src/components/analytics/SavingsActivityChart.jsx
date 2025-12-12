@@ -1,6 +1,6 @@
 // src/components/analytics/SavingsActivityChart.jsx
 import React from 'react';
-import { collectionGroup, getDocs } from 'firebase/firestore';
+import { collectionGroup, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
@@ -19,11 +19,19 @@ const SavingsActivityChart = () => {
             setIsLoading(true);
 
             try {
-                const transactionsQuery = collectionGroup(db, 'transactions');
+                // กรองเฉพาะเดือนปัจจุบัน
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const startTimestamp = Timestamp.fromDate(startOfMonth);
+
+                const transactionsQuery = query(
+                    collectionGroup(db, 'transactions'),
+                    where('timestamp', '>=', startTimestamp)
+                );
                 const querySnapshot = await getDocs(transactionsQuery);
 
                 const dataByGrade = grades.reduce((acc, grade) => {
-                    acc[grade] = { name: `ป.${grade.replace('p','')}`, ฝาก: 0, ถอน: 0 };
+                    acc[grade] = { name: `ป.${grade.replace('p', '')}`, ฝาก: 0, ถอน: 0 };
                     return acc;
                 }, {});
 

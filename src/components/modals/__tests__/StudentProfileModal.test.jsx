@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { act } from 'react';
 import { vi, describe, it, afterEach, beforeEach, expect } from 'vitest';
 import StudentProfileModal from '../StudentProfileModal';
+import { ToastProvider } from '../../../context/ToastContext';
 
 vi.mock('../../../api/gemini', () => ({
   callGeminiAPI: vi.fn(),
@@ -60,14 +61,16 @@ const renderModal = (props = {}) => {
   const mergedOverrides = { skipLiveSync: true, ...testOverrides };
 
   return render(
-    <StudentProfileModal
-      student={baseStudent}
-      grade="p6"
-      subjects={[]}
-      onClose={vi.fn()}
-      testOverrides={mergedOverrides}
-      {...rest}
-    />,
+    <ToastProvider>
+      <StudentProfileModal
+        student={baseStudent}
+        grade="p6"
+        subjects={[]}
+        onClose={vi.fn()}
+        testOverrides={mergedOverrides}
+        {...rest}
+      />
+    </ToastProvider>
   );
 };
 

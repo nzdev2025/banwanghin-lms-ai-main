@@ -5,8 +5,10 @@ import { callGeminiAPI } from '../../api/gemini';
 import WorksheetRenderer from '../worksheet/WorksheetRenderer';
 import { buildPrintableWorksheetHTML, printWorksheetHtml } from './aiWorksheetPrint';
 import { useSiteConfig } from '../../context/SiteConfigContext';
+import { useToast } from '../../context/ToastContext';
 
 const AIWorksheetGeneratorModal = ({ onClose }) => {
+    const toast = useToast();
     const { siteConfig } = useSiteConfig();
     const [formData, setFormData] = React.useState({
         docType: 'worksheet',
@@ -61,7 +63,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
     };
 
     const handleGenerate = async () => {
-        if (!formData.topic) { alert("กรุณาใส่หัวข้อหลักก่อนครับ"); return; }
+        if (!formData.topic) { toast.warning("กรุณาใส่หัวข้อหลักก่อนครับ"); return; }
         setIsGenerating(true);
         setWorksheetData(null);
         setError('');

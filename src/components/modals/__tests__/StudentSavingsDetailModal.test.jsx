@@ -3,6 +3,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
 import StudentSavingsDetailModal from '../StudentSavingsDetailModal';
 import { runTransaction, onSnapshot } from 'firebase/firestore';
+import { ToastProvider } from '../../../context/ToastContext';
+
+const renderWithProviders = (ui) => render(<ToastProvider>{ui}</ToastProvider>);
 
 // Mock Firebase
 vi.mock('../../../firebase/firebase', () => ({
@@ -30,12 +33,12 @@ describe('StudentSavingsDetailModal', () => {
     // Mock snapshot to return empty initially
     onSnapshot.mockImplementation((query, callback) => {
       callback({ docs: [], exists: () => false }); // for transactions and summary
-      return () => {};
+      return () => { };
     });
   });
 
   test('has correct z-index (>200) to appear above SavingsManagementModal', () => {
-    render(<StudentSavingsDetailModal student={mockStudent} grade="p1" onClose={mockOnClose} />);
+    renderWithProviders(<StudentSavingsDetailModal student={mockStudent} grade="p1" onClose={mockOnClose} />);
     // Find the backdrop/container
     const modal = screen.getByText('Test Student').closest('.fixed');
     // We expect it to be higher than 200. Let's say we target 250.
@@ -44,8 +47,8 @@ describe('StudentSavingsDetailModal', () => {
     expect(modal.className).toContain('z-[250]');
   });
 
-  test('calls onClose after successful transaction', async () => {
-    render(<StudentSavingsDetailModal student={mockStudent} grade="p1" onClose={mockOnClose} />);
+  test('shows success feedback after successful transaction', async () => {
+    renderWithProviders(<StudentSavingsDetailModal student={mockStudent} grade="p1" onClose={mockOnClose} />);
 
     // Enter Amount
     const amountInput = screen.getByPlaceholderText('0.00');
@@ -58,10 +61,10 @@ describe('StudentSavingsDetailModal', () => {
     const submitBtn = screen.getByText('ยืนยัน');
     fireEvent.click(submitBtn);
 
-    // Wait for onClose
+    // Wait for success feedback to show
     await waitFor(() => {
-        expect(runTransaction).toHaveBeenCalled();
-        expect(mockOnClose).toHaveBeenCalled(); 
+      expect(runTransaction).toHaveBeenCalled();
+      expect(screen.getByText('ทำรายการสำเร็จ!')).toBeInTheDocument();
     });
   });
 });

@@ -5,8 +5,10 @@ import { db, appId, logActivity } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import { desirableCharacteristics, readingAndThinkingSkills, keyCompetencies, assessmentLevels } from '../../constants/assessmentData';
 import Icon from '../../icons/Icon';
+import { useToast } from '../../context/ToastContext';
 
 const DevelopmentalAssessmentModal = ({ onClose }) => {
+    const toast = useToast();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [selectedTerm, setSelectedTerm] = React.useState('term1');
     const [students, setStudents] = React.useState([]);
@@ -78,16 +80,16 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
         try {
             const assessmentDocRef = doc(db, `artifacts/${appId}/public/data/assessments`, assessmentDocId);
             await setDoc(assessmentDocRef, assessments, { merge: true });
-            logActivity('ASSESSMENT_SAVE', `บันทึกข้อมูลประเมินพัฒนาการ ป.${selectedGrade.replace('p','')} เทอม ${selectedTerm.replace('term','')}`);
-            alert('บันทึกข้อมูลเรียบร้อย!');
+            logActivity('ASSESSMENT_SAVE', `บันทึกข้อมูลประเมินพัฒนาการ ป.${selectedGrade.replace('p', '')} เทอม ${selectedTerm.replace('term', '')}`);
+            toast.success('บันทึกข้อมูลเรียบร้อย!');
         } catch (error) {
             console.error("Error saving assessments:", error);
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setIsSaving(false);
         }
     };
-    
+
     // --- NEW: ฟังก์ชันสำหรับสุ่มคะแนน ---
     const handleRandomizeScores = () => {
         if (!students.length) return;
@@ -115,7 +117,7 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
         });
 
         setAssessments(newAssessments);
-        alert(`สุ่มกรอกคะแนนให้นักเรียน ${students.length} คนเรียบร้อยแล้ว! กรุณากด "บันทึกข้อมูล" เพื่อยืนยัน`);
+        toast.info(`สุ่มกรอกคะแนนให้นักเรียน ${students.length} คนเรียบร้อย! กด "บันทึกข้อมูล" เพื่อยืนยัน`);
     };
 
     // --- NEW: ฟังก์ชันสำหรับคลิกปุ่มลับ ---
@@ -126,7 +128,7 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
             setIsSecretButtonVisible(true);
         }
     };
-    
+
     const allAssessmentItems = [
         ...desirableCharacteristics,
         ...readingAndThinkingSkills,
@@ -143,26 +145,25 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                 </header>
-                
+
                 <div className="p-4 flex flex-wrap items-center justify-between gap-4 border-b border-white/10">
-                     <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         {grades.map((gradeId, index) => (
                             <button key={gradeId} onClick={() => setSelectedGrade(gradeId)} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-colors ${selectedGrade === gradeId ? 'bg-blue-500 text-white' : 'bg-gray-700/50 hover:bg-gray-700 text-gray-300'}`}>
                                 ป.{index + 1}
                             </button>
                         ))}
                     </div>
-                     <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-blue-300/30 shadow-inner shadow-blue-500/10">
+                    <div className="flex items-center gap-2 bg-gray-900/70 p-1.5 rounded-lg border border-blue-300/30 shadow-inner shadow-blue-500/10">
                         <span className="text-sm font-bold text-gray-200 px-2">ปีการศึกษา {currentYear}</span>
                         <button
                             type="button"
                             data-testid="assessment-term1"
                             onClick={() => setSelectedTerm('term1')}
-                            className={`px-3 py-1 text-xs rounded-full border transition ${
-                                selectedTerm === 'term1'
+                            className={`px-3 py-1 text-xs rounded-full border transition ${selectedTerm === 'term1'
                                     ? 'bg-blue-500 text-white border-blue-200 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
                                     : 'bg-white/10 text-blue-200 border-blue-200/50 hover:bg-white/20'
-                            }`}
+                                }`}
                         >
                             เทอม 1
                         </button>
@@ -170,11 +171,10 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
                             type="button"
                             data-testid="assessment-term2"
                             onClick={() => setSelectedTerm('term2')}
-                            className={`px-3 py-1 text-xs rounded-full border transition ${
-                                selectedTerm === 'term2'
+                            className={`px-3 py-1 text-xs rounded-full border transition ${selectedTerm === 'term2'
                                     ? 'bg-blue-500 text-white border-blue-200 shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
                                     : 'bg-white/10 text-blue-200 border-blue-200/50 hover:bg-white/20'
-                            }`}
+                                }`}
                         >
                             เทอม 2
                         </button>
@@ -226,11 +226,11 @@ const DevelopmentalAssessmentModal = ({ onClose }) => {
                         </table>
                     )}
                 </div>
-                 <footer className="p-4 border-t border-white/10 flex justify-between items-center">
+                <footer className="p-4 border-t border-white/10 flex justify-between items-center">
                     {/* --- NEW: ปุ่มลับจะแสดงผลที่นี่ --- */}
                     <div>
                         {isSecretButtonVisible && (
-                             <button onClick={handleRandomizeScores} className="flex items-center gap-2 py-2 px-4 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 font-bold rounded-lg transition-colors animate-pulse border border-yellow-500/40">
+                            <button onClick={handleRandomizeScores} className="flex items-center gap-2 py-2 px-4 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 font-bold rounded-lg transition-colors animate-pulse border border-yellow-500/40">
                                 <Icon name="Sparkles" size={18} />
                                 ปุ่ม Growth Mindset (สุ่มคะแนน 2-3)
                             </button>

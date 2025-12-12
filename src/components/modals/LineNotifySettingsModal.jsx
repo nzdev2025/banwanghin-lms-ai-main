@@ -4,8 +4,10 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
+import { useToast } from '../../context/ToastContext';
 
 const LineNotifySettingsModal = ({ onClose }) => {
+    const toast = useToast();
     const [settings, setSettings] = React.useState({});
     const [isLoading, setIsLoading] = React.useState(true);
     const [isSaving, setIsSaving] = React.useState(false);
@@ -38,10 +40,10 @@ const LineNotifySettingsModal = ({ onClose }) => {
         try {
             const docRef = doc(db, `artifacts/${appId}/public/data/line_notify_tokens`, grade);
             await setDoc(docRef, gradeSetting);
-            alert(`บันทึกการตั้งค่าสำหรับ ป.${grade.replace('p','')} เรียบร้อยแล้ว`);
+            toast.success(`บันทึกการตั้งค่าสำหรับ ป.${grade.replace('p', '')} เรียบร้อยแล้ว`);
         } catch (error) {
             console.error("Error saving settings:", error);
-            alert('เกิดข้อผิดพลาดในการบันทึก');
+            toast.error('เกิดข้อผิดพลาดในการบันทึก');
         } finally {
             setIsSaving(false);
         }
@@ -58,7 +60,7 @@ const LineNotifySettingsModal = ({ onClose }) => {
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                 </header>
                 <div className="p-6 flex-grow overflow-auto space-y-4">
-                     <div className="bg-lime-500/10 border border-lime-500/30 text-lime-200 p-4 rounded-lg mb-6">
+                    <div className="bg-lime-500/10 border border-lime-500/30 text-lime-200 p-4 rounded-lg mb-6">
                         <p className="font-bold">คำแนะนำ:</p>
                         <ul className="list-disc list-inside text-sm">
                             <li>นำ <span className="font-bold">Channel Access Token</span> ที่ได้จาก LINE Developers มาใส่ในช่องแรก</li>
@@ -92,7 +94,7 @@ const LineNotifySettingsModal = ({ onClose }) => {
                                     disabled={isSaving === grade}
                                     className="mt-3 flex items-center justify-center w-full bg-lime-500 hover:bg-lime-600 text-black font-bold py-2 rounded-lg transition-colors disabled:bg-gray-500"
                                 >
-                                    {isSaving === grade ? <Icon name="Loader2" className="animate-spin" size={20}/> : `บันทึก ป.${index+1}`}
+                                    {isSaving === grade ? <Icon name="Loader2" className="animate-spin" size={20} /> : `บันทึก ป.${index + 1}`}
                                 </button>
                             </div>
                         ))

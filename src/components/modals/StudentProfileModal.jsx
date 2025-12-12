@@ -5,6 +5,7 @@ import { callGeminiAPI } from '../../api/gemini';
 import Icon from '../../icons/Icon';
 import BehaviorLoggerModal from './BehaviorLoggerModal';
 import ConfirmationModal from './ConfirmationModal';
+import { useToast } from '../../context/ToastContext';
 
 const DEFAULT_HEALTH_DATA = { weight: '', height: '' };
 
@@ -174,6 +175,7 @@ const buildParentCommentPrompt = (aiSummary) => `
 
 
 const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, testOverrides = {} }) => {
+  const toast = useToast();
   const { initialScores, initialBehaviorLogs, initialHealthData, skipLiveSync } = testOverrides;
 
   const [studentScores, setStudentScores] = React.useState(initialScores ?? null);
@@ -312,7 +314,7 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, tes
       setIsEditingHealth(false);
     } catch (error) {
       console.error('Error saving health data:', error);
-      alert('บันทึกข้อมูลสุขภาพไม่สำเร็จ');
+      toast.error('บันทึกข้อมูลสุขภาพไม่สำเร็จ');
     } finally {
       setIsSavingHealth(false);
     }
@@ -325,7 +327,7 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, tes
       await deleteDoc(doc(db, logPath, logId));
     } catch (error) {
       console.error('Error deleting behavior log:', error);
-      alert('เกิดข้อผิดพลาดในการลบ');
+      toast.error('เกิดข้อผิดพลาดในการลบ');
     }
   };
 
@@ -403,9 +405,8 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, tes
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4 sm:gap-6">
                   <div
-                    className={`w-16 sm:w-20 h-16 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl font-extrabold shadow-lg ring-4 ring-white/10 ${
-                      student.gender === 'female' ? 'bg-gradient-to-br from-rose-500 to-fuchsia-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'
-                    } text-white`}
+                    className={`w-16 sm:w-20 h-16 sm:h-20 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl font-extrabold shadow-lg ring-4 ring-white/10 ${student.gender === 'female' ? 'bg-gradient-to-br from-rose-500 to-fuchsia-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'
+                      } text-white`}
                   >
                     {student.studentNumber}
                   </div>
@@ -844,16 +845,14 @@ const StudentProfileModal = ({ student, grade, subjects, onClose, openModal, tes
                             filteredBehaviorLogs.map((log) => (
                               <div
                                 key={log.id}
-                                className={`group p-3 rounded-xl border flex items-start gap-3 transition-all ${
-                                  log.type === 'positive'
+                                className={`group p-3 rounded-xl border flex items-start gap-3 transition-all ${log.type === 'positive'
                                     ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10'
                                     : 'bg-rose-500/5 border-rose-500/20 hover:bg-rose-500/10'
-                                }`}
+                                  }`}
                               >
                                 <div
-                                  className={`mt-1 p-2 rounded-lg ${
-                                    log.type === 'positive' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-200'
-                                  }`}
+                                  className={`mt-1 p-2 rounded-lg ${log.type === 'positive' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-200'
+                                    }`}
                                 >
                                   <Icon name={log.icon} size={16} />
                                 </div>

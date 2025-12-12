@@ -1,6 +1,7 @@
 import React from 'react';
 import Icon from '../../icons/Icon';
 import { callGeminiAPI } from '../../api/gemini';
+import { useToast } from '../../context/ToastContext';
 
 const gradeLevels = [
   'ประถมศึกษาปีที่ 1',
@@ -129,8 +130,7 @@ const stringifyPlan = (plan) => {
     'โครงสร้างแผนการสอน:',
     ...plan.lessonFlow.map(
       (flow, idx) =>
-        `${idx + 1}. ${flow.phase} (${flow.duration}) - ${flow.description}${
-          flow.tips ? ` | Tips: ${flow.tips}` : ''
+        `${idx + 1}. ${flow.phase} (${flow.duration}) - ${flow.description}${flow.tips ? ` | Tips: ${flow.tips}` : ''
         }`,
     ),
     '',
@@ -153,6 +153,7 @@ const stringifyPlan = (plan) => {
 };
 
 const AILessonPlanGeneratorModal = ({ onClose }) => {
+  const toast = useToast();
   const [topic, setTopic] = React.useState('');
   const [gradeLevel, setGradeLevel] = React.useState(gradeLevels[0]);
   const [duration, setDuration] = React.useState('60 นาที');
@@ -177,7 +178,7 @@ const AILessonPlanGeneratorModal = ({ onClose }) => {
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      alert('กรุณากรอกหัวข้อการสอนก่อนนะครับ');
+      toast.warning('กรุณากรอกหัวข้อการสอนก่อนนะครับ');
       return;
     }
     setIsGenerating(true);
@@ -245,7 +246,7 @@ OUTPUT JSON FORMAT:
       console.error(err);
       setError(
         err.message ||
-          'เกิดข้อผิดพลาดในการสร้างแผนการสอน กรุณาลองใหม่อีกครั้งภายหลัง',
+        'เกิดข้อผิดพลาดในการสร้างแผนการสอน กรุณาลองใหม่อีกครั้งภายหลัง',
       );
       setStatusMessage('เกิดข้อผิดพลาดในการสร้างแผนการสอน');
     } finally {
@@ -282,193 +283,192 @@ OUTPUT JSON FORMAT:
 
         <div className="flex-1 overflow-y-auto border-b border-white/10">
           <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <aside className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-white/85">หัวข้อการสอน</label>
-              <input
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="เช่น การสังเคราะห์ด้วยแสง ป.6"
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-white/85">ระดับชั้น</label>
-              <select
-                value={gradeLevel}
-                onChange={(e) => setGradeLevel(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                {gradeLevels.map((grade) => (
-                  <option key={grade} value={grade} className="bg-[#11162b]">
-                    {grade}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-white/85">
-                เวลาโดยรวมของบทเรียน
-              </label>
-              <input
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="เช่น 60 นาที"
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-white/85">
-                จุดเน้นเพิ่มเติม (ถ้ามี)
-              </label>
-              <textarea
-                value={focus}
-                onChange={(e) => setFocus(e.target.value)}
-                rows={3}
-                placeholder="เช่น ต้องการเน้นกิจกรรมปฏิบัติ หรือเชื่อมโยงกับวิชาคณิตศาสตร์"
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              />
-            </div>
-
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-500 py-3 text-sm font-semibold text-white shadow-[0_15px_30px_-18px_rgba(79,70,229,0.8)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isGenerating ? (
-                <>
-                  <Icon name="Loader2" size={18} className="animate-spin" />
-                  กำลังสร้างแผน...
-                </>
-              ) : (
-                <>
-                  <Icon name="Sparkles" size={18} />
-                  สร้างแผนการสอนด้วย AI
-                </>
-              )}
-            </button>
-            {(isGenerating || statusMessage) && (
-              <div
-                className={`flex items-start gap-3 rounded-xl border ${
-                  isGenerating
-                    ? 'border-sky-400/40 bg-sky-500/10 text-sky-100'
-                    : error
-                    ? 'border-rose-400/40 bg-rose-500/10 text-rose-100'
-                    : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100'
-                } px-4 py-3 text-sm transition`}
-              >
-                <Icon
-                  name={
-                    isGenerating
-                      ? 'Loader2'
-                      : error
-                      ? 'AlertTriangle'
-                      : 'CheckCircle2'
-                  }
-                  size={18}
-                  className={isGenerating ? 'animate-spin' : ''}
-                />
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-[0.3em] opacity-70">
-                    สถานะ
-                  </p>
-                  <p className="leading-snug">{statusMessage}</p>
-                </div>
-              </div>
-            )}
-            {error && (
-              <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {error}
-              </p>
-            )}
-          </aside>
-
-          <section className="space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white shadow-inner">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-semibold">
-                    {activePlan.topic} · {activePlan.gradeLevel}
-                  </h3>
-                  <p className="mt-1 text-sm text-white/70">
-                    เวลาโดยประมาณ {activePlan.duration}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white/15"
-                >
-                  <Icon name="FilePlus" size={16} />
-                  {copied ? 'คัดลอกแล้ว' : 'คัดลอกแผน'}
-                </button>
-              </div>
-              <p className="mt-4 text-sm leading-relaxed text-white/75">{activePlan.overview}</p>
-            </div>
-
-            <LessonSection icon="Target" title="จุดประสงค์การเรียนรู้">
-              {renderList(activePlan.objectives)}
-            </LessonSection>
-
-            <LessonSection icon="Sparkles" title="กิจกรรมเปิดบทเรียน">
-              <p className="leading-relaxed text-white/80">{activePlan.hook}</p>
-            </LessonSection>
-
-            <LessonSection icon="Timer" title="ผังการสอนรายช่วงเวลา">
+            <aside className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="space-y-3">
-                {activePlan.lessonFlow.map((flow, idx) => (
-                  <div
-                    key={`${flow.phase}-${idx}`}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/80"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-white">
-                      <span>{flow.phase}</span>
-                      <span className="text-xs uppercase tracking-[0.3em] text-white/60">
-                        {flow.duration}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-white/80">
-                      {flow.description}
+                <label className="text-sm font-medium text-white/85">หัวข้อการสอน</label>
+                <input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="เช่น การสังเคราะห์ด้วยแสง ป.6"
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-white/85">ระดับชั้น</label>
+                <select
+                  value={gradeLevel}
+                  onChange={(e) => setGradeLevel(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                >
+                  {gradeLevels.map((grade) => (
+                    <option key={grade} value={grade} className="bg-[#11162b]">
+                      {grade}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-white/85">
+                  เวลาโดยรวมของบทเรียน
+                </label>
+                <input
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  placeholder="เช่น 60 นาที"
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-white/85">
+                  จุดเน้นเพิ่มเติม (ถ้ามี)
+                </label>
+                <textarea
+                  value={focus}
+                  onChange={(e) => setFocus(e.target.value)}
+                  rows={3}
+                  placeholder="เช่น ต้องการเน้นกิจกรรมปฏิบัติ หรือเชื่อมโยงกับวิชาคณิตศาสตร์"
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                />
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-500 py-3 text-sm font-semibold text-white shadow-[0_15px_30px_-18px_rgba(79,70,229,0.8)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGenerating ? (
+                  <>
+                    <Icon name="Loader2" size={18} className="animate-spin" />
+                    กำลังสร้างแผน...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="Sparkles" size={18} />
+                    สร้างแผนการสอนด้วย AI
+                  </>
+                )}
+              </button>
+              {(isGenerating || statusMessage) && (
+                <div
+                  className={`flex items-start gap-3 rounded-xl border ${isGenerating
+                      ? 'border-sky-400/40 bg-sky-500/10 text-sky-100'
+                      : error
+                        ? 'border-rose-400/40 bg-rose-500/10 text-rose-100'
+                        : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100'
+                    } px-4 py-3 text-sm transition`}
+                >
+                  <Icon
+                    name={
+                      isGenerating
+                        ? 'Loader2'
+                        : error
+                          ? 'AlertTriangle'
+                          : 'CheckCircle2'
+                    }
+                    size={18}
+                    className={isGenerating ? 'animate-spin' : ''}
+                  />
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.3em] opacity-70">
+                      สถานะ
                     </p>
-                    {flow.tips && (
-                      <p className="mt-2 text-xs italic text-white/60">Tips: {flow.tips}</p>
-                    )}
+                    <p className="leading-snug">{statusMessage}</p>
                   </div>
-                ))}
-              </div>
-            </LessonSection>
-
-            <LessonSection icon="Lightbulb" title="คำถามชวนคิด">
-              {renderList(activePlan.essentialQuestions)}
-            </LessonSection>
-
-            <LessonSection icon="ClipboardCheck" title="การประเมินผล">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Formative
-                  </h4>
-                  {renderList(activePlan.assessments.formative)}
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                    Summative
-                  </h4>
-                  {renderList(activePlan.assessments.summative)}
+              )}
+              {error && (
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {error}
+                </p>
+              )}
+            </aside>
+
+            <section className="space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-white shadow-inner">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-semibold">
+                      {activePlan.topic} · {activePlan.gradeLevel}
+                    </h3>
+                    <p className="mt-1 text-sm text-white/70">
+                      เวลาโดยประมาณ {activePlan.duration}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-white/15"
+                  >
+                    <Icon name="FilePlus" size={16} />
+                    {copied ? 'คัดลอกแล้ว' : 'คัดลอกแผน'}
+                  </button>
                 </div>
+                <p className="mt-4 text-sm leading-relaxed text-white/75">{activePlan.overview}</p>
               </div>
-            </LessonSection>
 
-            <LessonSection icon="TrendingUp" title="ไอเดียต่อยอด / การบ้าน">
-              {renderList(activePlan.extensions)}
-            </LessonSection>
+              <LessonSection icon="Target" title="จุดประสงค์การเรียนรู้">
+                {renderList(activePlan.objectives)}
+              </LessonSection>
 
-            <LessonSection icon="BookOpen" title="สะท้อนคิดปิดท้าย">
-              <p className="text-sm leading-relaxed text-white/80">{activePlan.reflection}</p>
-            </LessonSection>
-          </section>
+              <LessonSection icon="Sparkles" title="กิจกรรมเปิดบทเรียน">
+                <p className="leading-relaxed text-white/80">{activePlan.hook}</p>
+              </LessonSection>
+
+              <LessonSection icon="Timer" title="ผังการสอนรายช่วงเวลา">
+                <div className="space-y-3">
+                  {activePlan.lessonFlow.map((flow, idx) => (
+                    <div
+                      key={`${flow.phase}-${idx}`}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white/80"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold text-white">
+                        <span>{flow.phase}</span>
+                        <span className="text-xs uppercase tracking-[0.3em] text-white/60">
+                          {flow.duration}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-white/80">
+                        {flow.description}
+                      </p>
+                      {flow.tips && (
+                        <p className="mt-2 text-xs italic text-white/60">Tips: {flow.tips}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </LessonSection>
+
+              <LessonSection icon="Lightbulb" title="คำถามชวนคิด">
+                {renderList(activePlan.essentialQuestions)}
+              </LessonSection>
+
+              <LessonSection icon="ClipboardCheck" title="การประเมินผล">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
+                      Formative
+                    </h4>
+                    {renderList(activePlan.assessments.formative)}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
+                      Summative
+                    </h4>
+                    {renderList(activePlan.assessments.summative)}
+                  </div>
+                </div>
+              </LessonSection>
+
+              <LessonSection icon="TrendingUp" title="ไอเดียต่อยอด / การบ้าน">
+                {renderList(activePlan.extensions)}
+              </LessonSection>
+
+              <LessonSection icon="BookOpen" title="สะท้อนคิดปิดท้าย">
+                <p className="text-sm leading-relaxed text-white/80">{activePlan.reflection}</p>
+              </LessonSection>
+            </section>
           </div>
         </div>
 

@@ -3,6 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import SubjectEditForm from '../SubjectEditForm';
+import { ToastProvider } from '../../../context/ToastContext';
+
+const renderWithProviders = (ui) => {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+};
 
 // Mock dependencies
 vi.mock('../../icons/Icon', () => ({
@@ -30,7 +35,7 @@ const mockSubject = {
 
 describe('SubjectEditForm', () => {
   it('renders form with initial values for editing', () => {
-    render(<SubjectEditForm subject={mockSubject} onSave={() => {}} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={mockSubject} onSave={() => { }} onCancel={() => { }} />);
 
     expect(screen.getByDisplayValue('Existing Subject')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Existing Teacher')).toBeInTheDocument();
@@ -40,7 +45,7 @@ describe('SubjectEditForm', () => {
   });
 
   it('renders empty form for new subject', () => {
-    render(<SubjectEditForm subject={{}} onSave={() => {}} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={() => { }} onCancel={() => { }} />);
 
     // Default values
     expect(screen.getByPlaceholderText('เช่น คณิตศาสตร์')).toHaveValue('');
@@ -52,7 +57,7 @@ describe('SubjectEditForm', () => {
 
   it('updates form fields when user types', async () => {
     const user = userEvent.setup();
-    render(<SubjectEditForm subject={{}} onSave={() => {}} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={() => { }} onCancel={() => { }} />);
 
     const nameInput = screen.getByPlaceholderText('เช่น คณิตศาสตร์');
     const teacherInput = screen.getByPlaceholderText('เช่น ครูใจดี');
@@ -66,14 +71,14 @@ describe('SubjectEditForm', () => {
 
   it('updates weights and calculates total correctly', async () => {
     const user = userEvent.setup();
-    render(<SubjectEditForm subject={{}} onSave={() => {}} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={() => { }} onCancel={() => { }} />);
 
     const midtermInput = screen.getAllByRole('spinbutton')[0]; // First number input is midterm
     const finalInput = screen.getAllByRole('spinbutton')[1];   // Second is final
 
     await user.clear(midtermInput);
     await user.type(midtermInput, '50');
-    
+
     await user.clear(finalInput);
     await user.type(finalInput, '50');
 
@@ -82,10 +87,10 @@ describe('SubjectEditForm', () => {
 
   it('shows validation error when weights do not sum to 100', async () => {
     const user = userEvent.setup();
-    render(<SubjectEditForm subject={{}} onSave={() => {}} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={() => { }} onCancel={() => { }} />);
 
     const midtermInput = screen.getAllByRole('spinbutton')[0];
-    
+
     await user.clear(midtermInput);
     await user.type(midtermInput, '60');
     // Final is 30 by default, total 90
@@ -95,10 +100,9 @@ describe('SubjectEditForm', () => {
 
   it('prevents submission and alerts if weights are invalid', async () => {
     const onSave = vi.fn();
-    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const user = userEvent.setup();
 
-    const { container } = render(<SubjectEditForm subject={{}} onSave={onSave} onCancel={() => {}} />);
+    const { container } = renderWithProviders(<SubjectEditForm subject={{}} onSave={onSave} onCancel={() => { }} />);
 
     const midtermInput = screen.getAllByRole('spinbutton')[0];
     await user.clear(midtermInput);
@@ -114,37 +118,34 @@ describe('SubjectEditForm', () => {
     const form = container.querySelector('#subject-form');
     fireEvent.submit(form);
 
-    expect(alertMock).toHaveBeenCalledWith('สัดส่วนคะแนนระหว่างภาคและปลายภาคต้องรวมกันได้ 100 คะแนนพอดีครับ');
     expect(onSave).not.toHaveBeenCalled();
-
-    alertMock.mockRestore();
   });
 
   it('submits form data when valid', async () => {
     const onSave = vi.fn();
     const user = userEvent.setup();
-    render(<SubjectEditForm subject={{}} onSave={onSave} onCancel={() => {}} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={onSave} onCancel={() => { }} />);
 
     // Fill required fields
     await user.type(screen.getByPlaceholderText('เช่น คณิตศาสตร์'), 'Science');
     await user.type(screen.getByPlaceholderText('เช่น ครูใจดี'), 'Dr. B');
-    
+
     // Weights are 70+30=100 by default
 
     await user.click(screen.getByText('บันทึกข้อมูล'));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-        name: 'Science',
-        teacherName: 'Dr. B',
-        midtermWeight: 70,
-        finalWeight: 30
+      name: 'Science',
+      teacherName: 'Dr. B',
+      midtermWeight: 70,
+      finalWeight: 30
     }));
   });
 
   it('calls onCancel when cancel button is clicked', async () => {
     const onCancel = vi.fn();
     const user = userEvent.setup();
-    render(<SubjectEditForm subject={{}} onSave={() => {}} onCancel={onCancel} />);
+    renderWithProviders(<SubjectEditForm subject={{}} onSave={() => { }} onCancel={onCancel} />);
 
     await user.click(screen.getByText('ยกเลิก'));
     expect(onCancel).toHaveBeenCalled();

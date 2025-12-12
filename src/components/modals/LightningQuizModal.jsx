@@ -6,6 +6,7 @@ import Icon from '../../icons/Icon';
 import AIQuizSetGeneratorModal from './AIQuizSetGeneratorModal';
 import JoinQrPreview from './JoinQrPreview';
 import { shouldAutoCompleteSession } from './lightningQuizHelpers';
+import { useToast } from '../../context/ToastContext';
 /* eslint-disable react-hooks/exhaustive-deps */
 
 const quizSetsPath = `artifacts/${appId}/public/data/quiz_sets`;
@@ -34,6 +35,7 @@ const clampDuration = (val, fallback = 20, min = 5, max = 180) => {
 };
 
 const LightningQuizModal = ({ onClose }) => {
+  const toast = useToast();
   const [quizSets, setQuizSets] = React.useState([]);
   const [isLoadingSets, setIsLoadingSets] = React.useState(true);
   const [creatingSet, setCreatingSet] = React.useState(false);
@@ -139,7 +141,7 @@ const LightningQuizModal = ({ onClose }) => {
     });
     return () => {
       unsubSession();
-     unsubParticipants();
+      unsubParticipants();
       setAnswerCounts([]);
       setParticipantCount(0);
       setScoreboard([]);
@@ -210,7 +212,7 @@ const LightningQuizModal = ({ onClose }) => {
     if (hasScores) payload.finalScoreboard = scoreboard;
     if (hasStats) payload.finalQuestionStats = questionStats;
     payload.finalizedResults = true;
-    updateDoc(doc(db, quizSessionsPath, sessionDoc.id), payload).catch(() => {});
+    updateDoc(doc(db, quizSessionsPath, sessionDoc.id), payload).catch(() => { });
   }, [db, sessionDoc?.id, sessionDoc?.status, scoreboard, questionStats, finalizedResults]);
 
   // Reset timers/counts whenเปลี่ยนคำถาม
@@ -647,12 +649,12 @@ const LightningQuizModal = ({ onClose }) => {
     handleCopyJoinLink();
   };
 
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
-        <div
-          className="flex h-[97vh] w-[99vw] max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
-          onClick={(e) => e.stopPropagation()}
-        >
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-3 backdrop-blur-lg" onClick={onClose}>
+      <div
+        className="flex h-[97vh] w-[99vw] max-w-[1800px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b1327]/95 text-white shadow-[0_25px_80px_-35px_rgba(0,0,0,0.85)]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div className="flex items-center gap-3">
             <Icon name="Bolt" size={26} className="text-purple-300" />
@@ -886,7 +888,7 @@ const LightningQuizModal = ({ onClose }) => {
                                     if (editingSetId === set.id) setEditingSetId(null);
                                   } catch (err) {
                                     console.error('delete set failed', err);
-                                    alert('ลบไม่สำเร็จ');
+                                    toast.error('ลบไม่สำเร็จ');
                                   }
                                 }}
                                 className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200 transition hover:bg-rose-500/20"
@@ -917,27 +919,27 @@ const LightningQuizModal = ({ onClose }) => {
                 </div>
               ) : (
                 <>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">รายละเอียดชุด</p>
-                          <span className="text-[11px] uppercase tracking-[0.25em] text-white/60">{sessionDoc?.status || 'waiting'}</span>
-                        </div>
-                        <p className="text-xs text-white/60">{selectedSet.instructions || '—'}</p>
-                        <ul className="mt-3 max-h-28 space-y-1 overflow-y-auto text-xs text-white/70">
-                          {selectedSet.questions?.map((question, index) => (
-                            <li key={index}>
-                              {index + 1}. {question.text}
-                            </li>
-                          ))}
-                        </ul>
-                        {sessionDoc?.status === 'running' && timeLeft !== null && (
-                          <p className="mt-2 text-xs text-amber-200">เวลาที่เหลือ: {timeLeft}s</p>
-                        )}
-                        {sessionDoc?.status === 'completed' && (
-                          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
-                            <p className="font-semibold text-white">สรุปผล</p>
-                            <p>ผู้เข้าร่วม: {participantCount} คน</p>
-                            <p>ตอบรวม: {scoreboard.reduce((sum, s) => sum + (s.answered || 0), 0)} ครั้ง</p>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">รายละเอียดชุด</p>
+                      <span className="text-[11px] uppercase tracking-[0.25em] text-white/60">{sessionDoc?.status || 'waiting'}</span>
+                    </div>
+                    <p className="text-xs text-white/60">{selectedSet.instructions || '—'}</p>
+                    <ul className="mt-3 max-h-28 space-y-1 overflow-y-auto text-xs text-white/70">
+                      {selectedSet.questions?.map((question, index) => (
+                        <li key={index}>
+                          {index + 1}. {question.text}
+                        </li>
+                      ))}
+                    </ul>
+                    {sessionDoc?.status === 'running' && timeLeft !== null && (
+                      <p className="mt-2 text-xs text-amber-200">เวลาที่เหลือ: {timeLeft}s</p>
+                    )}
+                    {sessionDoc?.status === 'completed' && (
+                      <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+                        <p className="font-semibold text-white">สรุปผล</p>
+                        <p>ผู้เข้าร่วม: {participantCount} คน</p>
+                        <p>ตอบรวม: {scoreboard.reduce((sum, s) => sum + (s.answered || 0), 0)} ครั้ง</p>
                         <button
                           type="button"
                           onClick={handleExportSummary}
@@ -1086,25 +1088,22 @@ const LightningQuizModal = ({ onClose }) => {
                             <button
                               type="button"
                               onClick={() => setAdvanceMode('manual')}
-                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                                !isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
-                              }`}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${!isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                                }`}
                             >
                               กดเองทีละข้อ
                             </button>
                             <button
                               type="button"
                               onClick={() => setAdvanceMode('auto')}
-                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                                isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
-                              }`}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                                }`}
                             >
                               อัตโนมัติ
                             </button>
                             <div
-                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
-                                isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
-                              }`}
+                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
+                                }`}
                             >
                               <span>เวลาต่อข้อ</span>
                               <input
@@ -1132,25 +1131,22 @@ const LightningQuizModal = ({ onClose }) => {
                             <button
                               type="button"
                               onClick={() => setAdvanceMode('manual')}
-                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                                !isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
-                              }`}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${!isAutoAdvance ? 'bg-white/20 text-white' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                                }`}
                             >
                               กดเองทีละข้อ
                             </button>
                             <button
                               type="button"
                               onClick={() => setAdvanceMode('auto')}
-                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                                isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
-                              }`}
+                              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${isAutoAdvance ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-black' : 'border border-white/20 text-white/80 hover:bg-white/10'
+                                }`}
                             >
                               อัตโนมัติ
                             </button>
                             <div
-                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${
-                                isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
-                              }`}
+                              className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${isAutoAdvance ? 'border-amber-300/60 bg-amber-500/10' : 'border-white/10 bg-black/30'
+                                }`}
                             >
                               <span>เวลาต่อข้อ</span>
                               <input
@@ -1216,12 +1212,12 @@ const LightningQuizModal = ({ onClose }) => {
                       <p className="text-sm font-semibold text-white">
                         {sessionDoc?.status === 'completed' ? 'สรุปผลหลังเกม' : 'Live Scoreboard'}
                       </p>
-                        {sessionDoc?.status === 'running' && timeLeft !== null && (
-                          <span className="text-[11px] text-amber-200">เหลือเวลา {timeLeft}s</span>
-                        )}
-                      </div>
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                      {sessionDoc?.status === 'running' && timeLeft !== null && (
+                        <span className="text-[11px] text-amber-200">เหลือเวลา {timeLeft}s</span>
+                      )}
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
                         <p className="mb-2 text-xs uppercase tracking-[0.3em] text-white/60">
                           {sessionDoc?.status === 'completed' ? 'สรุปคำตอบแต่ละข้อ' : 'คำตอบปัจจุบัน'}
                         </p>
@@ -1392,27 +1388,27 @@ const LightningQuizModal = ({ onClose }) => {
             </div>
           </section>
         </div>
-        </div>
-
-        {isAiModalOpen && (
-          <AIQuizSetGeneratorModal
-            onClose={() => setIsAiModalOpen(false)}
-            onApply={(aiSet) => {
-              setSetForm({
-                title: aiSet.title,
-                topic: aiSet.topic,
-                instructions: aiSet.instructions,
-                questions: aiSet.questions,
-              });
-              setQuestionDraft(defaultQuestionDraft);
-              setCreatingSet(true);
-              setEditingSetId(null);
-              setIsAiModalOpen(false);
-            }}
-          />
-        )}
       </div>
-    );
-  };
+
+      {isAiModalOpen && (
+        <AIQuizSetGeneratorModal
+          onClose={() => setIsAiModalOpen(false)}
+          onApply={(aiSet) => {
+            setSetForm({
+              title: aiSet.title,
+              topic: aiSet.topic,
+              instructions: aiSet.instructions,
+              questions: aiSet.questions,
+            });
+            setQuestionDraft(defaultQuestionDraft);
+            setCreatingSet(true);
+            setEditingSetId(null);
+            setIsAiModalOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
 
 export default LightningQuizModal;

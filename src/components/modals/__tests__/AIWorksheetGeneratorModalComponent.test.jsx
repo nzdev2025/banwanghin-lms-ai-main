@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import AIWorksheetGeneratorModal from '../AIWorksheetGeneratorModal';
+import { ToastProvider } from '../../../context/ToastContext';
 
 // Mock dependencies
 vi.mock('../../api/gemini', () => ({
@@ -33,7 +34,7 @@ describe('AIWorksheetGeneratorModal', () => {
     });
 
     it('renders correctly with dynamic school name', () => {
-        render(<AIWorksheetGeneratorModal onClose={vi.fn()} />);
+        render(<ToastProvider><AIWorksheetGeneratorModal onClose={vi.fn()} /></ToastProvider>);
 
         // Check for the header text "โรงเรียนบ้านวังหิน" which should now be "Test School Worksheet"
         // Initially this will fail because it's hardcoded

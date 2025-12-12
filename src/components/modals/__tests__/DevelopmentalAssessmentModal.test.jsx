@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DevelopmentalAssessmentModal from '../DevelopmentalAssessmentModal';
+import { ToastProvider } from '../../../context/ToastContext';
 
 vi.mock('../../../firebase/firebase', () => ({
   db: null,
@@ -15,7 +16,7 @@ vi.mock('../../../icons/Icon', () => ({
 
 describe('DevelopmentalAssessmentModal term toggle visibility', () => {
   it('renders term buttons with clear active/inactive contrast', async () => {
-    render(<DevelopmentalAssessmentModal onClose={() => {}} />);
+    render(<ToastProvider><DevelopmentalAssessmentModal onClose={() => { }} /></ToastProvider>);
     const term1 = await screen.findByTestId('assessment-term1');
     const term2 = screen.getByTestId('assessment-term2');
 

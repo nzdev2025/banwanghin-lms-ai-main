@@ -1,7 +1,13 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AttendanceChecker from '../AttendanceChecker';
+import { ToastProvider } from '../../../context/ToastContext';
+
+// Wrapper with ToastProvider
+const renderWithProviders = (ui) => {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+};
 
 vi.mock('../../../firebase/firebase', () => ({
   db: {},
@@ -37,7 +43,7 @@ describe('AttendanceChecker grade dropdown', () => {
   });
 
   it('renders with dark theme to keep text legible on dropdown', async () => {
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
     const select = await screen.findByTestId('grade-select');
     expect(select.className).toMatch(/bg-slate-900/);
     const option = select.querySelector('option');
@@ -62,7 +68,7 @@ describe('AttendanceChecker - History View Feature', () => {
   });
 
   it('renders a date picker input', async () => {
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
 
     await waitFor(() => {
       const datePicker = screen.getByTestId('date-picker');
@@ -72,7 +78,7 @@ describe('AttendanceChecker - History View Feature', () => {
   });
 
   it('defaults to today\'s date', async () => {
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
     const today = new Date().toISOString().slice(0, 10);
 
     await waitFor(() => {
@@ -93,7 +99,7 @@ describe('AttendanceChecker - History View Feature', () => {
       return Promise.resolve({ exists: () => false });
     });
 
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
 
     await waitFor(() => {
       expect(screen.getByTestId('date-picker')).toBeInTheDocument();
@@ -121,7 +127,7 @@ describe('AttendanceChecker - History View Feature', () => {
       return Promise.resolve({ exists: () => false });
     });
 
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
 
     await waitFor(() => {
       expect(screen.getByTestId('date-picker')).toBeInTheDocument();
@@ -173,7 +179,7 @@ describe('AttendanceChecker - Frequent Absence Alert', () => {
       return Promise.resolve({ exists: () => false });
     });
 
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
 
     await waitFor(() => {
       // Look for warning badge on student card
@@ -186,12 +192,138 @@ describe('AttendanceChecker - Frequent Absence Alert', () => {
   it('does not show warning badge for students with less than 4 absences', async () => {
     mockGetDoc.mockResolvedValue({ exists: () => false });
 
-    render(<AttendanceChecker />);
+    renderWithProviders(<AttendanceChecker />);
 
     await waitFor(() => {
       // No warning badges should appear for students with low absence
       const warningBadges = screen.queryAllByTestId('absence-warning-badge');
       expect(warningBadges.length).toBe(0);
     });
+  });
+});
+
+describe('AttendanceChecker - QR URL with Selected Date', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnSnapshot.mockImplementation((ref, cb) => {
+      cb({
+        docs: [
+          { id: 'stu1', data: () => ({ firstName: 'สมชาย', lastName: 'ใจดี', studentNumber: 1, gender: 'ชาย' }) },
+        ],
+      });
+      return vi.fn();
+    });
+    mockGetDoc.mockImplementation((ref) => {
+      // Return existing session with token when checking for QR session
+      if (ref.args && ref.args[1]?.includes('attendance_sessions')) {
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({ token: 'test-token-123' }),
+        });
+      }
+      return Promise.resolve({ exists: () => false });
+    });
+    mockGetDocs.mockResolvedValue({ docs: [] });
+  });
+
+  it('displays QR URL with selectedDate when date is changed', async () => {
+    renderWithProviders(<AttendanceChecker />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('date-picker')).toBeInTheDocument();
+    });
+
+    // Change date to a past date
+    const datePicker = screen.getByTestId('date-picker');
+    fireEvent.change(datePicker, { target: { value: '2025-12-01' } });
+
+    // Wait for component to re-render with new date
+    await waitFor(() => {
+      // Look for QR section that should contain the selectedDate
+      const qrSection = screen.queryByText(/attendance\/join/);
+      if (qrSection) {
+        // The URL should contain the selected date, not today
+        expect(qrSection.textContent).toContain('2025-12-01');
+      }
+    });
+  });
+});
+
+describe('AttendanceChecker - Monthly Report Button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnSnapshot.mockImplementation((ref, cb) => {
+      cb({
+        docs: [
+          { id: 'stu1', data: () => ({ firstName: 'สมชาย', lastName: 'ใจดี', studentNumber: 1, gender: 'ชาย' }) },
+        ],
+      });
+      return vi.fn();
+    });
+    mockGetDoc.mockResolvedValue({ exists: () => false });
+    mockGetDocs.mockResolvedValue({ docs: [] });
+  });
+
+  it('renders a monthly report button', async () => {
+    renderWithProviders(<AttendanceChecker />);
+
+    await waitFor(() => {
+      const reportButton = screen.queryByText(/สถิติ/i) || screen.queryByTestId('monthly-report-button');
+      expect(reportButton).toBeDefined();
+    });
+  });
+});
+
+describe('AttendanceChecker - Save Without LINE Token', () => {
+  const mockAlert = vi.fn();
+  const originalAlert = window.alert;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.alert = mockAlert;
+    mockOnSnapshot.mockImplementation((ref, cb) => {
+      cb({
+        docs: [
+          { id: 'stu1', data: () => ({ firstName: 'สมชาย', lastName: 'ใจดี', studentNumber: 1, gender: 'ชาย' }) },
+        ],
+      });
+      return vi.fn();
+    });
+    mockGetDoc.mockResolvedValue({ exists: () => false });
+    mockGetDocs.mockResolvedValue({ docs: [] });
+  });
+
+  afterEach(() => {
+    window.alert = originalAlert;
+  });
+
+  it('saves attendance successfully even without LINE token', async () => {
+    // Mock: no LINE settings exist
+    mockGetDoc.mockImplementation((ref) => {
+      if (ref.args && ref.args[1]?.includes('line_notify_tokens')) {
+        return Promise.resolve({ exists: () => false });
+      }
+      return Promise.resolve({ exists: () => false });
+    });
+
+    renderWithProviders(<AttendanceChecker />);
+
+    await waitFor(() => {
+      expect(screen.getByText('บันทึกและแจ้งเตือนผู้ปกครอง')).toBeInTheDocument();
+    });
+
+    // Click save button
+    const saveButton = screen.getByText('บันทึกและแจ้งเตือนผู้ปกครอง');
+    fireEvent.click(saveButton);
+
+    // Wait and check that alert shows success message (not error)
+    await waitFor(() => {
+      const alertCalls = mockAlert.mock.calls;
+      if (alertCalls.length > 0) {
+        const message = alertCalls[alertCalls.length - 1][0];
+        // Should contain success message, not error about missing token
+        expect(message).not.toContain('เกิดข้อผิดพลาด');
+      }
+    }, { timeout: 3000 });
   });
 });

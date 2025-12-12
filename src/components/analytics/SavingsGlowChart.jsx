@@ -1,6 +1,6 @@
 // src/components/analytics/SavingsGlowChart.jsx (Final Upgraded Aura Version)
 import React from 'react';
-import { collectionGroup, getDocs } from 'firebase/firestore';
+import { collectionGroup, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
@@ -19,11 +19,19 @@ const SavingsGlowChart = () => {
             setIsLoading(true);
 
             try {
-                const transactionsQuery = collectionGroup(db, 'transactions');
+                // กรองเฉพาะเดือนปัจจุบัน
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const startTimestamp = Timestamp.fromDate(startOfMonth);
+
+                const transactionsQuery = query(
+                    collectionGroup(db, 'transactions'),
+                    where('timestamp', '>=', startTimestamp)
+                );
                 const querySnapshot = await getDocs(transactionsQuery);
 
                 const dataByGrade = grades.reduce((acc, grade) => {
-                    acc[grade] = { name: `ป.${grade.replace('p','')}`, ฝาก: 0, ถอน: 0 };
+                    acc[grade] = { name: `ป.${grade.replace('p', '')}`, ฝาก: 0, ถอน: 0 };
                     return acc;
                 }, {});
 
@@ -78,14 +86,14 @@ const SavingsGlowChart = () => {
                     <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id="colorDeposit" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#34d399" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#34d399" stopOpacity={0.8} />
+                                <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="colorWithdraw" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.8} />
+                                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                             </linearGradient>
-                            
+
                             {/* --- UPGRADE: Increased stdDeviation for a stronger glow --- */}
                             <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
                                 <feGaussianBlur stdDeviation="5" result="coloredBlur" in="SourceGraphic" />

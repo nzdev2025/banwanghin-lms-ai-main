@@ -7,8 +7,10 @@ import AnalyticsDashboard from '../analytics/AnalyticsDashboard';
 import AssignmentModal from './AssignmentModal';
 import ConfirmationModal from './ConfirmationModal';
 import { generatePp5PDF } from '../../utils/pdfGenerator';
+import { useToast } from '../../context/ToastContext';
 
 const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
+    const toast = useToast();
     const [students, setStudents] = React.useState([]);
     const [assignments, setAssignments] = React.useState([]);
     const [scores, setScores] = React.useState({});
@@ -73,8 +75,12 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                 batch.set(docRef, payload, { merge: true });
             });
             await batch.commit();
-            logActivity('SCORE_UPDATE', `บันทึกคะแนนในวิชา <strong>${subject.name}</strong> (ป.${grade.replace('p','')})`);
-        } catch (error) { console.error("Error saving scores:", error); }
+            logActivity('SCORE_UPDATE', `บันทึกคะแนนในวิชา <strong>${subject.name}</strong> (ป.${grade.replace('p', '')})`);
+            toast.success('บันทึกคะแนนเรียบร้อย!');
+        } catch (error) {
+            console.error("Error saving scores:", error);
+            toast.error('เกิดข้อผิดพลาดในการบันทึก');
+        }
         finally { setIsSaving(false); }
     };
 
@@ -102,7 +108,7 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
     const handleDeleteAssignment = async (id) => {
         if (!id || !db) return;
         const assignmentToDelete = assignments.find(a => a.id === id);
-        if(!assignmentToDelete) return;
+        if (!assignmentToDelete) return;
         try {
             await deleteDoc(doc(db, `${subjectBasePath}/assignments`, id));
 
@@ -130,7 +136,7 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
-        link.setAttribute("download", `${subject.name}_ป${grade.replace('p','')}_scores.csv`);
+        link.setAttribute("download", `${subject.name}_ป${grade.replace('p', '')}_scores.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -143,7 +149,7 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                 <div className="bg-gray-800/80 backdrop-blur-xl border border-white/20 rounded-2xl w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl shadow-black/50">
                     <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
-                        <div><h2 className="text-2xl font-bold text-white">{subject.name} - (ป.{grade.replace('p','')})</h2><p className="text-gray-400">ตารางบันทึกคะแนน</p></div>
+                        <div><h2 className="text-2xl font-bold text-white">{subject.name} - (ป.{grade.replace('p', '')})</h2><p className="text-gray-400">ตารางบันทึกคะแนน</p></div>
                         <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                     </header>
                     <div className="p-6 flex-grow overflow-auto">
@@ -164,8 +170,8 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                                                     <span className={`mt-1 text-xs font-medium px-2 py-0.5 rounded-full ${category.color}`}>{category.label}</span>
                                                 </div>
                                                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => setModal({ type: 'editAssignment', data: assign })} className="p-1 bg-sky-500/50 hover:bg-sky-500 rounded"><Icon name="Pencil" size={12}/></button>
-                                                    <button onClick={() => setModal({ type: 'deleteConfirmation', data: { type: 'assignment', id: assign.id, name: assign.name }})} className="p-1 bg-red-500/50 hover:bg-red-500 rounded"><Icon name="Trash2" size={12}/></button>
+                                                    <button onClick={() => setModal({ type: 'editAssignment', data: assign })} className="p-1 bg-sky-500/50 hover:bg-sky-500 rounded"><Icon name="Pencil" size={12} /></button>
+                                                    <button onClick={() => setModal({ type: 'deleteConfirmation', data: { type: 'assignment', id: assign.id, name: assign.name } })} className="p-1 bg-red-500/50 hover:bg-red-500 rounded"><Icon name="Trash2" size={12} /></button>
                                                 </div>
                                             </th>
                                         );
@@ -175,19 +181,19 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                             </thead>
                             <tbody>
                                 {students.map(student => {
-                                   const totalScore = assignments.reduce((sum, assign) => (sum + (scores[student.id]?.[assign.id] ?? 0)), 0);
-                                   return (
-                                    <tr key={student.id} className="hover:bg-white/5">
-                                        <td className="p-2 text-center border-b border-r border-gray-700 text-gray-200">{student.studentNumber}</td>
-                                        <td className="p-2 font-medium text-gray-200 border-b border-r border-gray-700 cursor-pointer hover:text-teal-300" onClick={() => onStudentClick(student, grade)}>{`${student.firstName} ${student.lastName}`}</td>
-                                        {assignments.map(assign => (
-                                            <td key={assign.id} className="p-0 border-b border-r border-gray-700">
-                                                <input type="number" max={assign.maxScore} min="0" value={scores[student.id]?.[assign.id] ?? ''} onChange={(e) => handleScoreChange(student.id, assign.id, e.target.value)} className="w-full h-full bg-transparent text-center text-white p-3 outline-none focus:bg-sky-500/20" placeholder="-"/>
-                                            </td>
-                                        ))}
-                                        <td className="p-3 text-center border-b border-r border-gray-700 font-bold text-teal-300">{totalScore}</td>
-                                    </tr>
-                                   );
+                                    const totalScore = assignments.reduce((sum, assign) => (sum + (scores[student.id]?.[assign.id] ?? 0)), 0);
+                                    return (
+                                        <tr key={student.id} className="hover:bg-white/5">
+                                            <td className="p-2 text-center border-b border-r border-gray-700 text-gray-200">{student.studentNumber}</td>
+                                            <td className="p-2 font-medium text-gray-200 border-b border-r border-gray-700 cursor-pointer hover:text-teal-300" onClick={() => onStudentClick(student, grade)}>{`${student.firstName} ${student.lastName}`}</td>
+                                            {assignments.map(assign => (
+                                                <td key={assign.id} className="p-0 border-b border-r border-gray-700">
+                                                    <input type="number" max={assign.maxScore} min="0" value={scores[student.id]?.[assign.id] ?? ''} onChange={(e) => handleScoreChange(student.id, assign.id, e.target.value)} className="w-full h-full bg-transparent text-center text-white p-3 outline-none focus:bg-sky-500/20" placeholder="-" />
+                                                </td>
+                                            ))}
+                                            <td className="p-3 text-center border-b border-r border-gray-700 font-bold text-teal-300">{totalScore}</td>
+                                        </tr>
+                                    );
                                 })}
                             </tbody>
                         </table>
@@ -205,9 +211,9 @@ const ClassDetailView = ({ subject, grade, onClose, onStudentClick }) => {
                 </div>
             </div>
 
-            {modal.type === 'addAssignment' && <AssignmentModal onClose={() => setModal({type: null})} onSave={handleAddOrEditAssignment} />}
-            {modal.type === 'editAssignment' && <AssignmentModal onClose={() => setModal({type: null})} onSave={handleAddOrEditAssignment} initialData={modal.data} />}
-            {modal.type === 'deleteConfirmation' && <ConfirmationModal onClose={() => setModal({type: null})} onConfirm={() => handleDeleteAssignment(modal.data.id)} item={modal.data} />}
+            {modal.type === 'addAssignment' && <AssignmentModal onClose={() => setModal({ type: null })} onSave={handleAddOrEditAssignment} />}
+            {modal.type === 'editAssignment' && <AssignmentModal onClose={() => setModal({ type: null })} onSave={handleAddOrEditAssignment} initialData={modal.data} />}
+            {modal.type === 'deleteConfirmation' && <ConfirmationModal onClose={() => setModal({ type: null })} onConfirm={() => handleDeleteAssignment(modal.data.id)} item={modal.data} />}
         </>
     );
 };

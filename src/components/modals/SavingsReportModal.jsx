@@ -6,8 +6,11 @@ import { db, appId } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
 import { grades } from '../../constants/data';
 import { buildPrintableSavingsReport } from './savingsReportPrint';
+import { exportToCSV, formatDateForFilename } from '../../utils/exportUtils';
+import { useToast } from '../../context/ToastContext';
 
 const SavingsReportModal = ({ onClose }) => {
+    const toast = useToast();
     const [reportType, setReportType] = useState('daily');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
     const [transactions, setTransactions] = useState([]);
@@ -63,7 +66,7 @@ const SavingsReportModal = ({ onClose }) => {
                         id: doc.id,
                         ...data,
                         studentName: studentInfo ? `${studentInfo.firstName} ${studentInfo.lastName}` : 'N/A',
-                        grade: studentInfo ? `ป.${studentInfo.grade.replace('p','')}` : 'N/A'
+                        grade: studentInfo ? `ป.${studentInfo.grade.replace('p', '')}` : 'N/A'
                     });
 
                     if (data.type === 'deposit') {
@@ -78,7 +81,7 @@ const SavingsReportModal = ({ onClose }) => {
             setSummary({ deposits: totalDeposits, withdrawals: totalWithdrawals });
         } catch (error) {
             console.error("Error fetching report:", error);
-            alert("เกิดข้อผิดพลาดในการดึงข้อมูลรายงาน: " + error.message);
+            toast.error("เกิดข้อผิดพลาดในการดึงข้อมูลรายงาน");
         } finally {
             setIsLoading(false);
         }
@@ -86,7 +89,7 @@ const SavingsReportModal = ({ onClose }) => {
 
     const getDateRange = (type, dateString) => {
         let start, end;
-    
+
         if (type === 'daily') {
             const [year, month, day] = dateString.split('-').map(Number);
             start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
@@ -102,14 +105,14 @@ const SavingsReportModal = ({ onClose }) => {
         }
         return { start, end };
     };
-    
+
     const formatDate = (timestamp) => {
         if (!timestamp || !timestamp.toDate) return '...';
         return timestamp.toDate().toLocaleString('th-TH', {
             year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
     };
-    
+
     const handlePrint = () => {
         const html = buildPrintableSavingsReport({
             transactions,
@@ -125,6 +128,22 @@ const SavingsReportModal = ({ onClose }) => {
         w.print();
     };
 
+    const handleExportCsv = () => {
+        const columns = [
+            { key: 'type', label: 'ประเภท' },
+            { key: 'studentName', label: 'ชื่อนักเรียน' },
+            { key: 'grade', label: 'ชั้น' },
+            { key: 'amount', label: 'จำนวนเงิน' },
+            { key: 'formattedDate', label: 'วันที่ทำรายการ' },
+        ];
+        const data = transactions.map(t => ({
+            ...t,
+            type: t.type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน',
+            formattedDate: t.timestamp?.toDate?.()?.toLocaleString('th-TH') || '-',
+        }));
+        exportToCSV(data, `savings_report_${formatDateForFilename()}`, columns);
+    };
+
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4 print:p-0 print:bg-white print:block" onClick={onClose}>
             <div className="bg-gray-800 border border-emerald-500/50 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl print:border-none print:shadow-none print:w-full print:h-auto print:block" onClick={(e) => e.stopPropagation()}>
@@ -132,7 +151,7 @@ const SavingsReportModal = ({ onClose }) => {
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="BookOpen" />รายงานการออมทรัพย์</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><Icon name="X" size={28} /></button>
                 </header>
-                
+
                 <div className="p-4 flex flex-wrap items-end gap-4 border-b border-white/10 flex-shrink-0 print:hidden">
                     <div>
                         <label className="text-sm text-gray-300">ประเภทรายงาน</label>
@@ -142,15 +161,15 @@ const SavingsReportModal = ({ onClose }) => {
                             <option value="yearly">รายปี</option>
                         </select>
                     </div>
-                     <div>
+                    <div>
                         <label className="text-sm text-gray-300">เลือก {reportType === 'daily' ? 'วันที่' : reportType === 'monthly' ? 'เดือน' : 'ปี'}</label>
-                        <input 
-                            type={ reportType === 'daily' ? 'date' : reportType === 'monthly' ? 'month' : 'number' }
-                            value={ reportType === 'yearly' ? selectedDate.slice(0, 4) : reportType === 'monthly' ? selectedDate.slice(0, 7) : selectedDate }
+                        <input
+                            type={reportType === 'daily' ? 'date' : reportType === 'monthly' ? 'month' : 'number'}
+                            value={reportType === 'yearly' ? selectedDate.slice(0, 4) : reportType === 'monthly' ? selectedDate.slice(0, 7) : selectedDate}
                             onChange={e => {
                                 const val = e.target.value;
-                                if (reportType === 'yearly') { setSelectedDate(`${val}-01-01`); } 
-                                else if (reportType === 'monthly') { setSelectedDate(`${val}-01`); } 
+                                if (reportType === 'yearly') { setSelectedDate(`${val}-01-01`); }
+                                else if (reportType === 'monthly') { setSelectedDate(`${val}-01`); }
                                 else { setSelectedDate(val); }
                             }}
                             className="w-full bg-gray-700/50 p-2 rounded-lg border border-gray-600 text-white h-[42px]"
@@ -159,7 +178,7 @@ const SavingsReportModal = ({ onClose }) => {
                         />
                     </div>
                     <button onClick={handleFetchReport} disabled={isLoading} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg h-[42px] disabled:bg-gray-500 flex items-center gap-2">
-                        {isLoading ? <Icon name="Loader2" className="animate-spin"/> : <Icon name="Search" />}
+                        {isLoading ? <Icon name="Loader2" className="animate-spin" /> : <Icon name="Search" />}
                         {isLoading ? 'กำลังโหลด...' : 'ค้นหา'}
                     </button>
                 </div>
@@ -171,7 +190,7 @@ const SavingsReportModal = ({ onClose }) => {
                         <div className="bg-sky-500/10 p-4 rounded-lg"><p className="text-sm text-sky-300">ผลต่าง (ฝาก-ถอน)</p><p className="text-3xl font-bold text-white">{(summary.deposits - summary.withdrawals).toLocaleString('th-TH')} ฿</p></div>
                     </div>
                     <div className="bg-gray-900/50 rounded-xl p-4 flex-grow overflow-y-auto print:bg-transparent">
-                         {isLoading ? (
+                        {isLoading ? (
                             <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-emerald-400" size={32} /></div>
                         ) : (
                             <ul className="space-y-2">
@@ -183,7 +202,7 @@ const SavingsReportModal = ({ onClose }) => {
                                             <p className="text-xs text-gray-400">{formatDate(t.timestamp)}</p>
                                         </div>
                                         <p className={`font-mono text-lg ${t.type === 'deposit' ? 'text-green-300' : 'text-red-300'}`}>
-                                           {t.type === 'deposit' ? '+' : '-'}{t.amount.toLocaleString('th-TH', {minimumFractionDigits: 2})}
+                                            {t.type === 'deposit' ? '+' : '-'}{t.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                                         </p>
                                     </li>
                                 )) : (
@@ -193,7 +212,11 @@ const SavingsReportModal = ({ onClose }) => {
                         )}
                     </div>
                 </div>
-                 <footer className="p-3 border-t border-white/10 flex justify-end print:hidden">
+                <footer className="p-3 border-t border-white/10 flex justify-end gap-2 print:hidden">
+                    <button onClick={handleExportCsv} className="flex items-center gap-2 py-2 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors">
+                        <Icon name="Download" size={18} />
+                        Export CSV
+                    </button>
                     <button onClick={handlePrint} className="flex items-center gap-2 py-2 px-6 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-lg transition-colors">
                         <Icon name="Printer" size={18} />
                         พิมพ์รายงาน

@@ -3,6 +3,7 @@ import React from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db, logActivity, appId } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
+import { useToast } from '../../context/ToastContext';
 
 const behaviorTags = {
     positive: [
@@ -19,6 +20,7 @@ const behaviorTags = {
 };
 
 const BehaviorLoggerModal = ({ student, grade, onClose }) => {
+    const toast = useToast();
     const [note, setNote] = React.useState('');
     const [isSaving, setIsSaving] = React.useState(false);
     // ++ NEW STATE: เก็บ tag ที่ถูกเลือก ++
@@ -40,7 +42,7 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
     // ++ REVISED FUNCTION: ย้าย logic การบันทึกมาที่นี่ ++
     const handleSaveLog = async () => {
         if (!selectedTag) {
-            alert("กรุณาเลือกรายการพฤติกรรมก่อนบันทึกครับ");
+            toast.warning("กรุณาเลือกรายการพฤติกรรมก่อนบันทึกครับ");
             return;
         }
         setIsSaving(true);
@@ -60,7 +62,7 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
             onClose(); // Close modal on success
         } catch (error) {
             console.error("Error saving behavior log:", error);
-            alert("เกิดข้อผิดพลาดในการบันทึก");
+            toast.error("เกิดข้อผิดพลาดในการบันทึก");
         } finally {
             setIsSaving(false);
         }
@@ -80,10 +82,10 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
                             {behaviorTags.positive.map(tag => {
                                 const isSelected = selectedTag?.tag.label === tag.label;
                                 return (
-                                    <button 
-                                        key={tag.label} 
-                                        onClick={() => handleSelectTag('positive', tag)} 
-                                        disabled={isSaving} 
+                                    <button
+                                        key={tag.label}
+                                        onClick={() => handleSelectTag('positive', tag)}
+                                        disabled={isSaving}
                                         className={`flex items-center gap-2 py-2 px-3 bg-green-500/10 hover:bg-green-500/20 text-green-300 rounded-lg transition-all ${isSelected ? 'ring-2 ring-green-400' : ''}`}
                                     >
                                         <Icon name={tag.icon} size={16} /> <span>{tag.label}</span>
@@ -95,13 +97,13 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
                     <div>
                         <h4 className="font-semibold text-red-300 mb-2">พฤติกรรมที่ควรส่งเสริม</h4>
                         <div className="flex flex-wrap gap-2">
-                             {behaviorTags.needs_attention.map(tag => {
-                                 const isSelected = selectedTag?.tag.label === tag.label;
-                                 return (
-                                    <button 
-                                        key={tag.label} 
-                                        onClick={() => handleSelectTag('needs_attention', tag)} 
-                                        disabled={isSaving} 
+                            {behaviorTags.needs_attention.map(tag => {
+                                const isSelected = selectedTag?.tag.label === tag.label;
+                                return (
+                                    <button
+                                        key={tag.label}
+                                        onClick={() => handleSelectTag('needs_attention', tag)}
+                                        disabled={isSaving}
                                         className={`flex items-center gap-2 py-2 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg transition-all ${isSelected ? 'ring-2 ring-red-400' : ''}`}
                                     >
                                         <Icon name={tag.icon} size={16} /> <span>{tag.label}</span>
@@ -136,14 +138,14 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
                         </div>
                     </div>
                 </div>
-                 <footer className="p-4 border-t border-white/10 flex justify-end gap-4">
-                     <button type="button" onClick={onClose} className="py-2 px-6 text-gray-300 hover:text-white">ยกเลิก</button>
-                     <button 
-                        type="button" 
-                        onClick={handleSaveLog} 
-                        disabled={isSaving || !selectedTag} 
+                <footer className="p-4 border-t border-white/10 flex justify-end gap-4">
+                    <button type="button" onClick={onClose} className="py-2 px-6 text-gray-300 hover:text-white">ยกเลิก</button>
+                    <button
+                        type="button"
+                        onClick={handleSaveLog}
+                        disabled={isSaving || !selectedTag}
                         className="flex items-center justify-center gap-2 py-2 px-6 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
-                     >
+                    >
                         {isSaving ? <Icon name="Loader2" className="animate-spin" /> : <Icon name="Save" />}
                         บันทึก
                     </button>

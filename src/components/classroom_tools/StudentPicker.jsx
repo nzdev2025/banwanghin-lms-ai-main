@@ -4,12 +4,14 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, appId } from '../../firebase/firebase';
 import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
+import { useToast } from '../../context/ToastContext';
 
 const StudentPicker = ({ size }) => { // รับ prop 'size'
+    const toast = useToast();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [students, setStudents] = React.useState([]);
     const [isLoading, setIsLoading] = React.useState(true);
-    
+
     const [isPicking, setIsPicking] = React.useState(false);
     const [pickedStudent, setPickedStudent] = React.useState(null);
     const [allowDuplicates, setAllowDuplicates] = React.useState(true);
@@ -19,10 +21,10 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
         if (!db || !selectedGrade) return;
         setIsLoading(true);
         setPickedStudent(null);
-        setPickedHistory([]); 
+        setPickedHistory([]);
         const rosterBasePath = `artifacts/${appId}/public/data/rosters/${selectedGrade}`;
         const q = query(collection(db, `${rosterBasePath}/students`), orderBy("studentNumber"));
-        
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             setIsLoading(false);
@@ -30,20 +32,20 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
             console.error("Error fetching students:", error);
             setIsLoading(false);
         });
-        
+
         return () => unsubscribe();
     }, [selectedGrade]);
 
     const handlePickStudent = () => {
-        const availableStudents = allowDuplicates 
-            ? students 
+        const availableStudents = allowDuplicates
+            ? students
             : students.filter(s => !pickedHistory.includes(s.id));
 
         if (availableStudents.length === 0) {
-            alert("สุ่มครบทุกคนแล้ว! กรุณากด 'เริ่มรอบใหม่'");
+            toast.info("สุ่มครบทุกคนแล้ว! กรุณากด 'เริ่มรอบใหม่'");
             return;
         }
-        
+
         setIsPicking(true);
         setPickedStudent(null);
 
@@ -52,7 +54,7 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
             const randomIndex = Math.floor(Math.random() * availableStudents.length);
             const chosenOne = availableStudents[randomIndex];
             setPickedStudent(chosenOne);
-            
+
             shuffleCount++;
             if (shuffleCount > 20) {
                 clearInterval(shuffleInterval);
@@ -63,14 +65,14 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
             }
         }, 100);
     };
-    
+
     const handleReset = () => {
         setPickedHistory([]);
         setPickedStudent(null);
     };
 
     const remainingCount = students.length - pickedHistory.length;
-    
+
     const getResponsiveClass = (baseClass, largeClass, threshold = 600) => {
         return `transition-all duration-300 ${size?.width > threshold ? largeClass : baseClass}`;
     };
@@ -81,12 +83,12 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
                 <div className="flex flex-wrap items-end gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">เลือกชั้นเรียน</label>
-                        <select 
+                        <select
                             value={selectedGrade}
                             onChange={e => setSelectedGrade(e.target.value)}
                             className="bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-white h-[42px]"
                         >
-                            {grades.map((g, i) => <option key={g} value={g}>ประถมศึกษาปีที่ {i+1}</option>)}
+                            {grades.map((g, i) => <option key={g} value={g}>ประถมศึกษาปีที่ {i + 1}</option>)}
                         </select>
                     </div>
                     <div>
@@ -98,22 +100,22 @@ const StudentPicker = ({ size }) => { // รับ prop 'size'
                     </div>
                     {!allowDuplicates && (
                         <button onClick={handleReset} className="flex items-center gap-2 text-sm text-sky-300 hover:text-sky-200 h-[42px]">
-                            <Icon name="RotateCw" size={16}/> เริ่มรอบใหม่ ({remainingCount} คน)
+                            <Icon name="RotateCw" size={16} /> เริ่มรอบใหม่ ({remainingCount} คน)
                         </button>
                     )}
                 </div>
-                <button 
+                <button
                     onClick={handlePickStudent}
                     disabled={isPicking || students.length === 0}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:opacity-90 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-wait"
                 >
-                    <Icon name="Shuffle" size={20}/>
+                    <Icon name="Shuffle" size={20} />
                     {isPicking ? 'กำลังสุ่ม...' : 'สุ่มเลือกนักเรียน'}
                 </button>
             </div>
 
             <div className="flex-grow bg-gray-900/50 rounded-xl p-6 flex items-center justify-center text-center">
-                 {isLoading ? (
+                {isLoading ? (
                     <Icon name="Loader2" className="animate-spin text-amber-400" size={48} />
                 ) : pickedStudent ? (
                     <div className="animate-fade-in">

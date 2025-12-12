@@ -4,14 +4,17 @@ import React from 'react';
 import { collection, onSnapshot, query, orderBy, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db, logActivity, appId } from '../../firebase/firebase';
 import Icon from '../../icons/Icon';
+import { useToast } from '../../context/ToastContext';
 
 const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
+    const toast = useToast();
     const [transactions, setTransactions] = React.useState([]);
     const [balance, setBalance] = React.useState(0);
     const [amount, setAmount] = React.useState('');
     const [type, setType] = React.useState('deposit');
     const [isLoading, setIsLoading] = React.useState(true);
     const [isSaving, setIsSaving] = React.useState(false);
+    const [showSuccess, setShowSuccess] = React.useState(false);
 
     const savingsBasePath = `artifacts/${appId}/public/data/savings/${grade}/students/${student.id}`;
 
@@ -37,9 +40,16 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
         e.preventDefault();
         const transactionAmount = parseFloat(amount);
         if (isNaN(transactionAmount) || transactionAmount <= 0) return;
-        if (type === 'withdraw' && transactionAmount > balance) {
-            alert("ยอดเงินไม่เพียงพอสำหรับการถอน");
-            return;
+
+        // Confirm ก่อนถอนเงิน
+        if (type === 'withdraw') {
+            if (transactionAmount > balance) {
+                toast.error("ยอดเงินไม่เพียงพอสำหรับการถอน");
+                return;
+            }
+            if (!window.confirm(`ยืนยันการถอนเงิน ${transactionAmount.toFixed(2)} บาท ของ ${student.firstName}?`)) {
+                return;
+            }
         }
 
         setIsSaving(true);
@@ -51,7 +61,7 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
             await runTransaction(db, async (transaction) => {
                 const summaryDoc = await transaction.get(summaryDocRef);
                 const currentBalance = summaryDoc.exists() ? summaryDoc.data().totalBalance : 0;
-                const newBalance = type === 'deposit' 
+                const newBalance = type === 'deposit'
                     ? currentBalance + transactionAmount
                     : currentBalance - transactionAmount;
 
@@ -66,18 +76,25 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
                     lastUpdated: serverTimestamp()
                 }, { merge: true });
             });
-            
+
             logActivity('SAVINGS_TRANSACTION', `ทำรายการ ${type} จำนวน ${transactionAmount} บาท ของ ${student.firstName}`);
             setAmount('');
-            onClose(); // Close modal on success
+
+            // แสดง feedback ก่อนปิด
+            setShowSuccess(true);
+            setTimeout(() => {
+                setShowSuccess(false);
+                onClose();
+            }, 1500);
 
         } catch (error) {
             console.error("Transaction failed: ", error);
+            toast.error("เกิดข้อผิดพลาด: " + error.message);
         } finally {
             setIsSaving(false);
         }
     };
-    
+
     const formatDate = (timestamp) => {
         if (!timestamp || !timestamp.toDate) return '...';
         return timestamp.toDate().toLocaleString('th-TH', {
@@ -85,6 +102,19 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
             hour: '2-digit', minute: '2-digit'
         });
     };
+
+    // Success overlay component
+    if (showSuccess) {
+        return (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
+                <div className="bg-gray-800 border border-emerald-500 rounded-2xl p-8 text-center shadow-2xl">
+                    <Icon name="CheckCircle" className="text-emerald-400 mx-auto mb-4" size={64} />
+                    <p className="text-2xl font-bold text-white">ทำรายการสำเร็จ!</p>
+                    <p className="text-gray-400 mt-2">{type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน'} เรียบร้อยแล้ว</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4" onClick={onClose}>
@@ -109,7 +139,7 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
                             </select>
                         </div>
                         <button type="submit" disabled={isSaving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg h-[42px] disabled:bg-gray-500 flex-shrink-0">
-                           {isSaving ? <Icon name="Loader2" className="animate-spin"/> : 'ยืนยัน'}
+                            {isSaving ? <Icon name="Loader2" className="animate-spin" /> : 'ยืนยัน'}
                         </button>
                     </form>
                 </div>
@@ -131,7 +161,7 @@ const StudentSavingsDetailModal = ({ student, grade, onClose }) => {
                                             <p className="text-xs text-gray-400">{formatDate(t.timestamp)}</p>
                                         </div>
                                         <p className={`font-mono text-lg ${t.type === 'deposit' ? 'text-green-300' : 'text-red-300'}`}>
-                                           {t.type === 'deposit' ? '+' : '-'}{t.amount.toFixed(2)}
+                                            {t.type === 'deposit' ? '+' : '-'}{t.amount.toFixed(2)}
                                         </p>
                                     </li>
                                 )) : (

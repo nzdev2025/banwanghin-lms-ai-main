@@ -6,14 +6,16 @@
 @tailwind utilities;
 
 @layer base {
-  html, body {
+
+  html,
+  body {
     font-family: 'Sarabun', system-ui, sans-serif;
   }
 
   td {
     @apply text-gray-200;
   }
-  
+
   .a4-paper {
     width: 210mm;
     min-height: 297mm;
@@ -21,7 +23,7 @@
 
   @page {
     /* --- FIX: Changed default to Portrait for worksheets --- */
-    size: A4 portrait; 
+    size: A4 portrait;
     margin: 2cm;
   }
 
@@ -50,19 +52,22 @@
       width: 100% !important;
       overflow: visible !important;
     }
+
     .print-only-layout .print-page {
       page-break-after: always;
     }
+
     .print-only-layout .print-page:last-child {
       page-break-after: auto;
     }
+
     .print-only-layout li {
       break-inside: avoid;
       page-break-inside: avoid;
     }
 
     /* Hide rest of app while printing (prevent dashboard page from appearing) */
-    #root > *:not(.print-wrapper) {
+    #root>*:not(.print-wrapper) {
       display: none !important;
     }
 
@@ -72,25 +77,28 @@
       width: 0 !important;
       height: 0 !important;
     }
+
     * {
-      scrollbar-width: none !important; /* For Firefox */
+      scrollbar-width: none !important;
+      /* For Firefox */
     }
 
     .print\:hidden {
       display: none !important;
     }
-    
+
     .print\:block {
       display: block !important;
     }
-    
-    .print-table th, .print-table td {
+
+    .print-table th,
+    .print-table td {
       border: 1px solid black;
       padding: 4px;
       font-size: 10pt;
       color: black !important;
     }
-    
+
     .print-table th {
       background-color: #e2e8f0 !important;
     }
@@ -98,13 +106,14 @@
     .school-header {
       text-align: center !important;
     }
-    
+
     .printable-content-area {
       background: transparent !important;
       padding: 0 !important;
       overflow: visible !important;
       height: auto !important;
     }
+
     .a4-paper {
       box-shadow: none !important;
       margin: 0 !important;
@@ -112,5 +121,21 @@
       min-height: auto !important;
       padding: 0 !important;
     }
+  }
+
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out forwards;
   }
 }

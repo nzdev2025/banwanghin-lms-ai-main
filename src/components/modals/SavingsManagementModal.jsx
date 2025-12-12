@@ -7,6 +7,7 @@ import { grades } from '../../constants/data';
 import Icon from '../../icons/Icon';
 import StudentSavingsDetailModal from './StudentSavingsDetailModal';
 import SavingsReportModal from './SavingsReportModal';
+import BatchSavingsModal from './BatchSavingsModal';
 
 const SavingsManagementModal = ({ onClose }) => {
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
@@ -15,7 +16,8 @@ const SavingsManagementModal = ({ onClose }) => {
     const [isLoading, setIsLoading] = React.useState(true);
     const [selectedStudent, setSelectedStudent] = React.useState(null);
     const [isReportModalOpen, setIsReportModalOpen] = React.useState(false);
-    
+    const [batchMode, setBatchMode] = React.useState(null); // 'deposit' | 'withdraw' | null
+
     const rosterBasePath = `artifacts/${appId}/public/data/rosters/${selectedGrade}`;
     const savingsBasePath = `artifacts/${appId}/public/data/savings/${selectedGrade}/students`;
 
@@ -51,7 +53,15 @@ const SavingsManagementModal = ({ onClose }) => {
                     <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                         <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="PiggyBank" />ระบบออมทรัพย์นักเรียน</h2>
                         <div className="flex items-center gap-2">
-                             <button onClick={() => setIsReportModalOpen(true)} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-3 rounded-lg border border-gray-600">
+                            <button onClick={() => setBatchMode('deposit')} className="flex items-center gap-1 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg">
+                                <Icon name="Plus" size={16} />
+                                ฝากทั้งชั้น
+                            </button>
+                            <button onClick={() => setBatchMode('withdraw')} className="flex items-center gap-1 text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-3 rounded-lg">
+                                <Icon name="Minus" size={16} />
+                                ถอนทั้งชั้น
+                            </button>
+                            <button onClick={() => setIsReportModalOpen(true)} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-3 rounded-lg border border-gray-600">
                                 <Icon name="BookOpen" size={16} />
                                 ดูรายงาน
                             </button>
@@ -105,17 +115,27 @@ const SavingsManagementModal = ({ onClose }) => {
                     </div>
                 </div>
             </div>
-            
+
             {selectedStudent && (
-                <StudentSavingsDetailModal 
-                    student={selectedStudent} 
+                <StudentSavingsDetailModal
+                    student={selectedStudent}
                     grade={selectedGrade}
-                    onClose={() => setSelectedStudent(null)} 
+                    onClose={() => setSelectedStudent(null)}
                 />
             )}
 
             {isReportModalOpen && (
                 <SavingsReportModal onClose={() => setIsReportModalOpen(false)} />
+            )}
+
+            {batchMode && (
+                <BatchSavingsModal
+                    students={students}
+                    grade={selectedGrade}
+                    type={batchMode}
+                    savings={savings}
+                    onClose={() => setBatchMode(null)}
+                />
             )}
         </>
     );

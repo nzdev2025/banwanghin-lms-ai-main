@@ -6,9 +6,11 @@ import Icon from '../../icons/Icon';
 import StudentModal from './StudentModal';
 import ConfirmationModal from './ConfirmationModal';
 import ImportStudentsModal from './ImportStudentsModal';
+import { useToast } from '../../context/ToastContext';
 
 
 const RosterManagementModal = ({ onClose }) => {
+    const toast = useToast();
     const [selectedGrade, setSelectedGrade] = React.useState('p1');
     const [students, setStudents] = React.useState([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -38,26 +40,26 @@ const RosterManagementModal = ({ onClose }) => {
                 // eslint-disable-next-line no-unused-vars
                 const { id, ...dataToUpdate } = data;
                 await setDoc(docRef, dataToUpdate, { merge: true });
-                logActivity('STUDENT_UPDATE', `แก้ไขข้อมูลนักเรียน <strong>${data.firstName}</strong> ในชั้น ป.${selectedGrade.replace('p','')}`);
+                logActivity('STUDENT_UPDATE', `แก้ไขข้อมูลนักเรียน <strong>${data.firstName}</strong> ในชั้น ป.${selectedGrade.replace('p', '')}`);
             } else {
                 // This is the fix for the final bug we found.
                 // The 'id' field with 'undefined' value is removed before adding the document.
                 // eslint-disable-next-line no-unused-vars
                 const { id, ...dataToAdd } = data;
                 await addDoc(collectionRef, dataToAdd);
-                logActivity('STUDENT_ADD', `เพิ่มนักเรียนใหม่ <strong>${data.firstName}</strong> เข้าชั้น ป.${selectedGrade.replace('p','')}`);
+                logActivity('STUDENT_ADD', `เพิ่มนักเรียนใหม่ <strong>${data.firstName}</strong> เข้าชั้น ป.${selectedGrade.replace('p', '')}`);
             }
             setModal({ type: null, data: null });
         } catch (error) {
             console.error("Error saving student:", error);
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         }
     };
 
     const handleDeleteStudent = async (id) => {
         if (!id || !db) return;
         const studentToDelete = students.find(s => s.id === id);
-        if(!studentToDelete) return;
+        if (!studentToDelete) return;
 
         // --- START: โค้ดที่เพิ่มเข้ามาเพื่อลบข้อมูลที่เกี่ยวข้อง ---
         const savingsBasePath = `artifacts/${appId}/public/data/savings/${selectedGrade}`;
@@ -82,13 +84,13 @@ const RosterManagementModal = ({ onClose }) => {
 
             // 4. ทำการลบทั้งหมดในครั้งเดียว
             await batch.commit();
-            
-            logActivity('STUDENT_DELETE', `ลบนักเรียน <strong>${studentToDelete.firstName}</strong> และข้อมูลการออมทรัพย์ทั้งหมด ออกจากชั้น ป.${selectedGrade.replace('p','')}`);
+
+            logActivity('STUDENT_DELETE', `ลบนักเรียน <strong>${studentToDelete.firstName}</strong> และข้อมูลการออมทรัพย์ทั้งหมด ออกจากชั้น ป.${selectedGrade.replace('p', '')}`);
             setModal({ type: null, data: null });
 
-        } catch (error) { 
-            console.error("Error deleting student and related data:", error); 
-            alert("เกิดข้อผิดพลาดในการลบข้อมูล: " + error.message);
+        } catch (error) {
+            console.error("Error deleting student and related data:", error);
+            toast.error("เกิดข้อผิดพลาดในการลบข้อมูล: " + error.message);
         }
     };
 
@@ -102,7 +104,7 @@ const RosterManagementModal = ({ onClose }) => {
                 batch.set(newDocRef, student);
             });
             await batch.commit();
-            logActivity('STUDENT_ADD', `นำเข้ารายชื่อนักเรียน <strong>${newStudents.length}</strong> คน เข้าสู่ชั้น ป.${selectedGrade.replace('p','')}`);
+            logActivity('STUDENT_ADD', `นำเข้ารายชื่อนักเรียน <strong>${newStudents.length}</strong> คน เข้าสู่ชั้น ป.${selectedGrade.replace('p', '')}`);
             setModal({ type: null });
         } catch (error) {
             console.error("Error importing students:", error);
@@ -132,7 +134,7 @@ const RosterManagementModal = ({ onClose }) => {
                     </div>
                     <div className="p-6 flex-grow overflow-auto">
                         {isLoading ? (
-                             <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-sky-400" size={40} /></div>
+                            <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-sky-400" size={40} /></div>
                         ) : (
                             <table className="w-full text-left">
                                 <thead>
@@ -151,8 +153,8 @@ const RosterManagementModal = ({ onClose }) => {
                                             <td className="p-3 text-gray-200">{student.lastName}</td>
                                             <td className="p-3 text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <button onClick={() => setModal({ type: 'editStudent', data: student })} className="p-1.5 text-sky-400 hover:bg-sky-500/20 rounded"><Icon name="Pencil" size={16}/></button>
-                                                    <button onClick={() => setModal({ type: 'deleteConfirmation', data: { type: 'student', id: student.id, name: `${student.firstName} ${student.lastName}` }})} className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"><Icon name="Trash2" size={16}/></button>
+                                                    <button onClick={() => setModal({ type: 'editStudent', data: student })} className="p-1.5 text-sky-400 hover:bg-sky-500/20 rounded"><Icon name="Pencil" size={16} /></button>
+                                                    <button onClick={() => setModal({ type: 'deleteConfirmation', data: { type: 'student', id: student.id, name: `${student.firstName} ${student.lastName}` } })} className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"><Icon name="Trash2" size={16} /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -167,10 +169,10 @@ const RosterManagementModal = ({ onClose }) => {
                     </footer>
                 </div>
             </div>
-            {modal.type === 'addStudent' && <StudentModal onClose={() => setModal({type: null})} onSave={handleAddOrEditStudent} />}
-            {modal.type === 'editStudent' && <StudentModal onClose={() => setModal({type: null})} onSave={handleAddOrEditStudent} initialData={modal.data} />}
-            {modal.type === 'deleteConfirmation' && <ConfirmationModal onClose={() => setModal({type: null})} onConfirm={() => handleDeleteStudent(modal.data.id)} item={modal.data} />}
-            {modal.type === 'importStudents' && <ImportStudentsModal onClose={() => setModal({type: null})} onImport={handleImportStudents} />}
+            {modal.type === 'addStudent' && <StudentModal onClose={() => setModal({ type: null })} onSave={handleAddOrEditStudent} />}
+            {modal.type === 'editStudent' && <StudentModal onClose={() => setModal({ type: null })} onSave={handleAddOrEditStudent} initialData={modal.data} />}
+            {modal.type === 'deleteConfirmation' && <ConfirmationModal onClose={() => setModal({ type: null })} onConfirm={() => handleDeleteStudent(modal.data.id)} item={modal.data} />}
+            {modal.type === 'importStudents' && <ImportStudentsModal onClose={() => setModal({ type: null })} onImport={handleImportStudents} />}
         </>
     );
 };

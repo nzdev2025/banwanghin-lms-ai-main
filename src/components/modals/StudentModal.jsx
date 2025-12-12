@@ -1,8 +1,10 @@
 // src/components/modals/StudentModal.jsx
 
 import React from 'react';
+import { useToast } from '../../context/ToastContext';
 
 const StudentModal = ({ onClose, onSave, initialData = null }) => {
+    const toast = useToast();
     // ... (ส่วน state เหมือนเดิม) ...
     const [studentNumber, setStudentNumber] = React.useState(initialData?.studentNumber || '');
     const [firstName, setFirstName] = React.useState(initialData?.firstName || '');
@@ -11,24 +13,24 @@ const StudentModal = ({ onClose, onSave, initialData = null }) => {
     const [gender, setGender] = React.useState(initialData?.gender || 'ชาย');
 
     const isEditMode = !!initialData;
-    
-    const handleSubmit = (e) => { 
-        e.preventDefault(); 
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
         // --- ACE's MODIFICATION START ---
         // เปลี่ยนเงื่อนไข: ตรวจสอบแค่ชื่อจริงและนามสกุลเท่านั้น
-        if (firstName.trim() && lastName.trim()) { 
-            onSave({ 
-                id: initialData?.id, 
+        if (firstName.trim() && lastName.trim()) {
+            onSave({
+                id: initialData?.id,
                 // ส่งค่า studentNumber เป็น null ถ้าไม่ได้กรอก เพื่อไม่ให้เกิด Error
-                studentNumber: studentNumber ? parseInt(studentNumber, 10) : null, 
-                firstName: firstName.trim(), 
+                studentNumber: studentNumber ? parseInt(studentNumber, 10) : null,
+                firstName: firstName.trim(),
                 lastName: lastName.trim(),
                 birthDate, // ส่งค่าว่างไปถ้าไม่ได้กรอก
-                gender     
-            }); 
+                gender
+            });
         } else {
             // ปรับข้อความแจ้งเตือนให้ชัดเจนขึ้น
-            alert("กรุณากรอก 'ชื่อจริง' และ 'นามสกุล' เป็นอย่างน้อยครับ");
+            toast.warning("กรุณากรอก 'ชื่อจริง' และ 'นามสกุล' เป็นอย่างน้อยครับ");
         }
         // --- ACE's MODIFICATION END ---
     };
@@ -46,7 +48,7 @@ const StudentModal = ({ onClose, onSave, initialData = null }) => {
                             {/* ลบ required ออก */}
                             <input type="number" id="studentNumber" value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500" min="1" />
                         </div>
-                         <div className="mb-4">
+                        <div className="mb-4">
                             <label htmlFor="birthDate" className="block text-sm font-medium text-gray-300 mb-1">วันเกิด</label>
                             {/* ลบ required ออก */}
                             <input type="date" id="birthDate" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
