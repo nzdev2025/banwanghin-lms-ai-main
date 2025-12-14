@@ -92,9 +92,28 @@ export const getSheetData = (workbook, sheetName, options = {}) => {
 
         for (let c = startCol; c <= actualColCount; c++) {
             const cell = row.getCell(c);
+            // Safe handling of null/undefined cell values
+            let cellValue = null;
+            let cellText = '';
+
+            try {
+                cellValue = cell?.value ?? null;
+                // Handle different cell value types safely
+                if (cellValue === null || cellValue === undefined) {
+                    cellText = '';
+                } else if (typeof cellValue === 'object') {
+                    // Handle rich text, formula results, etc.
+                    cellText = cell?.text ?? String(cellValue?.result ?? cellValue?.text ?? '');
+                } else {
+                    cellText = String(cellValue);
+                }
+            } catch {
+                cellText = '';
+            }
+
             rowData.push({
-                value: cell.value,
-                text: cell.text || String(cell.value || ''),
+                value: cellValue,
+                text: cellText,
                 column: c,
                 columnLetter: numberToColumnLetter(c),
             });

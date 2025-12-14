@@ -362,10 +362,10 @@ const MappingWizard = ({
                         {renderConfirmation()}
                     </div>
                 ) : (
-                    <div className="h-full grid grid-cols-1 lg:grid-cols-5 gap-6">
-                        {/* Left: Sheet selector + Column mapper (2 cols) */}
-                        <div className="lg:col-span-2 flex flex-col gap-6 overflow-y-auto pr-2">
-                            <div className="bg-gradient-to-br from-white/5 to-transparent rounded-2xl border border-white/10 p-5">
+                    <div className="h-full grid grid-cols-1 xl:grid-cols-7 gap-6">
+                        {/* Left: Sheet selector + Column mapper (3 cols) - expanded */}
+                        <div className="xl:col-span-3 flex flex-col gap-5 overflow-y-auto">
+                            <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] rounded-2xl border border-white/15 p-6 shadow-lg">
                                 <SheetSelector
                                     sheets={sheetNames}
                                     selectedSheet={selectedSheet}
@@ -376,7 +376,7 @@ const MappingWizard = ({
                             </div>
 
                             {selectedSheet && (
-                                <div className="bg-gradient-to-br from-white/5 to-transparent rounded-2xl border border-white/10 p-5 flex-1">
+                                <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] rounded-2xl border border-white/15 p-6 flex-1 shadow-lg">
                                     <ColumnMapper
                                         dataType={currentDataType}
                                         columns={mapping.sheets[currentDataType]?.columns || {}}
@@ -389,10 +389,10 @@ const MappingWizard = ({
                             )}
                         </div>
 
-                        {/* Right: Sheet preview (3 cols) */}
-                        <div className="lg:col-span-3 min-h-0">
+                        {/* Right: Sheet preview (4 cols) */}
+                        <div className="xl:col-span-4 min-h-0">
                             {sheetPreviewData ? (
-                                <div className="h-full bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl border border-white/10 overflow-hidden">
+                                <div className="h-full bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl border border-white/10 overflow-hidden shadow-lg">
                                     <SheetPreview
                                         sheetData={sheetPreviewData}
                                         highlightedColumns={highlightedColumns}

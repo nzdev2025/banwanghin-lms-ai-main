@@ -1,12 +1,12 @@
 // src/components/pp5/SheetSelector.jsx
-// Component for selecting a sheet from the workbook
+// Component for selecting a sheet from the workbook - Premium design
 
 import React from 'react';
 import PropTypes from 'prop-types';
 import Icon from '../../icons/Icon';
 
 /**
- * SheetSelector - Displays list of sheets for selection
+ * SheetSelector - Displays list of sheets for selection with expanded layout
  */
 const SheetSelector = ({
     sheets = [],
@@ -17,22 +17,25 @@ const SheetSelector = ({
 }) => {
     // Get mapping status icon for each sheet
     const getMappingIcon = (sheetName) => {
-        if (mappedSheets.studentInfo === sheetName) return { icon: 'Users', color: 'text-blue-400', label: 'ข้อมูลนักเรียน' };
-        if (mappedSheets.scores === sheetName) return { icon: 'Award', color: 'text-yellow-400', label: 'คะแนน' };
-        if (mappedSheets.attendance === sheetName) return { icon: 'Calendar', color: 'text-green-400', label: 'เวลาเรียน' };
-        if (mappedSheets.health === sheetName) return { icon: 'Heart', color: 'text-red-400', label: 'สุขภาพ' };
-        if (mappedSheets.basicInfo === sheetName) return { icon: 'Info', color: 'text-purple-400', label: 'ข้อมูลพื้นฐาน' };
+        if (mappedSheets.studentInfo === sheetName) return { icon: 'Users', color: 'text-blue-400', label: 'ข้อมูลนักเรียน', bgColor: 'bg-blue-500/20' };
+        if (mappedSheets.scores === sheetName) return { icon: 'Award', color: 'text-amber-400', label: 'คะแนน', bgColor: 'bg-amber-500/20' };
+        if (mappedSheets.attendance === sheetName) return { icon: 'Calendar', color: 'text-emerald-400', label: 'เวลาเรียน', bgColor: 'bg-emerald-500/20' };
+        if (mappedSheets.health === sheetName) return { icon: 'Heart', color: 'text-rose-400', label: 'สุขภาพ', bgColor: 'bg-rose-500/20' };
+        if (mappedSheets.basicInfo === sheetName) return { icon: 'Info', color: 'text-purple-400', label: 'ข้อมูลพื้นฐาน', bgColor: 'bg-purple-500/20' };
         return null;
     };
 
     return (
-        <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Icon name="Layers" size={20} className="text-purple-400" />
+        <div className="space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                    <Icon name="Layers" size={20} className="text-purple-400" />
+                </div>
                 {title}
             </h3>
 
-            <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto p-1">
+            {/* Expanded sheet grid - no max height, wrap naturally */}
+            <div className="flex flex-wrap gap-2">
                 {sheets.map((sheetName, index) => {
                     const isSelected = selectedSheet === sheetName;
                     const mappingInfo = getMappingIcon(sheetName);
@@ -43,26 +46,28 @@ const SheetSelector = ({
                             onClick={() => onSelectSheet(sheetName)}
                             title={sheetName}
                             className={`
-                                relative px-3 py-2 rounded-lg text-left transition-all duration-200 whitespace-nowrap
-                                border ${isSelected
-                                    ? 'bg-blue-600/30 border-blue-500 ring-2 ring-blue-500/50'
-                                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}
+                                relative px-4 py-2.5 rounded-xl text-left transition-all duration-200 whitespace-nowrap
+                                border-2 ${isSelected
+                                    ? 'bg-gradient-to-r from-blue-600/40 to-indigo-600/40 border-blue-400 shadow-lg shadow-blue-500/20'
+                                    : mappingInfo
+                                        ? `${mappingInfo.bgColor} border-white/10 hover:border-white/30`
+                                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}
                             `}
                         >
                             {/* Mapping indicator badge */}
                             {mappingInfo && (
-                                <div className={`absolute -top-1 -right-1 p-1 rounded-full bg-gray-800 border border-white/20`}>
-                                    <Icon name={mappingInfo.icon} size={10} className={mappingInfo.color} />
+                                <div className={`absolute -top-2 -right-2 p-1.5 rounded-full ${mappingInfo.bgColor} border-2 border-gray-800`}>
+                                    <Icon name={mappingInfo.icon} size={12} className={mappingInfo.color} />
                                 </div>
                             )}
 
                             <div className="flex items-center gap-2">
                                 <Icon
                                     name="FileSpreadsheet"
-                                    size={14}
-                                    className={isSelected ? 'text-blue-400' : 'text-gray-400'}
+                                    size={16}
+                                    className={isSelected ? 'text-blue-300' : 'text-gray-400'}
                                 />
-                                <span className={`text-xs font-medium ${isSelected ? 'text-blue-200' : 'text-gray-200'}`}>
+                                <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-gray-200'}`}>
                                     {sheetName}
                                 </span>
                             </div>
