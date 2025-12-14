@@ -35,16 +35,16 @@ const AssignmentModal = ({ onClose, onSave, initialData = null }) => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4" onClick={onClose}>
                 <div className="bg-gray-800 border border-white/20 rounded-2xl p-6 w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-between items-start">
-                        <h3 className="text-xl font-bold mb-4">{isEditMode ? 'แก้ไขรายการเก็บคะแนน' : 'เพิ่มรายการเก็บคะแนน'}</h3>
-                        <button 
-                            type="button" 
+                        <h3 className="text-xl font-bold mb-4 text-white">{isEditMode ? 'แก้ไขรายการเก็บคะแนน' : 'เพิ่มรายการเก็บคะแนน'}</h3>
+                        <button
+                            type="button"
                             onClick={() => setIsAiModalOpen(true)}
                             className="flex items-center gap-2 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold py-1 px-3 rounded-full transition-all duration-300 border border-purple-500/40"
                         >
-                            <Icon name="Sparkles" size={14}/>
+                            <Icon name="Sparkles" size={14} />
                             <span>ผู้ช่วย AI</span>
                         </button>
                     </div>

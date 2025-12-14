@@ -69,7 +69,7 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-800 border border-amber-500/50 rounded-2xl w-full max-w-lg shadow-2xl shadow-black/50" onClick={(e) => e.stopPropagation()}>
                 <header className="p-4 border-b border-white/10">
                     <h3 className="text-xl font-bold text-white">บันทึกพฤติกรรม</h3>

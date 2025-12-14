@@ -152,7 +152,85 @@ const HealthRecordModal = ({ onClose }) => {
         }
     };
 
-    const handlePrint = () => { window.print(); };
+    const handlePrint = () => {
+        // Build printable HTML in a new window
+        const rowsHtml = students.map(student => {
+            const studentHealth = healthData[student.id] || {};
+            const age = calculateAge(student.birthDate);
+            const statuses = getDetailedGrowthStatus(student.gender, age.years, studentHealth.weight, studentHealth.height);
+            return `
+                <tr>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${student.studentNumber}</td>
+                    <td style="border:1px solid #000;padding:4px">${student.firstName} ${student.lastName}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${student.gender === 'ชาย' ? 'ช' : 'ญ'}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${age.years || ''}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${age.months || ''}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${studentHealth.weight || ''}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${studentHealth.height || ''}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${statuses.weightForAge}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${statuses.heightForAge}</td>
+                    <td style="border:1px solid #000;padding:4px;text-align:center">${statuses.weightForHeight}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const html = `
+            <html>
+            <head>
+                <title>แบบบันทึกน้ำหนัก - ส่วนสูง</title>
+                <style>
+                    body { font-family: "Sarabun", Arial, sans-serif; padding: 20px; color: #000; }
+                    h1, h2, h3 { text-align: center; margin: 4px 0; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                    th { background: #e2e8f0; border: 1px solid #000; padding: 6px; font-size: 12px; }
+                    td { font-size: 11px; }
+                    .signature-section { display: flex; justify-content: space-around; margin-top: 48px; text-align: center; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <h1 style="font-size:16px">แบบบันทึกน้ำหนัก - ส่วนสูง</h1>
+                <h2 style="font-size:14px">ชั้นประถมศึกษาปีที่ ${selectedGrade.replace('p', '')} ปีการศึกษา ${currentYear} ${siteConfig?.schoolName || ''}</h2>
+                <h3 style="font-size:13px">ประจำเดือน ${currentMonth} พ.ศ. ${currentYear}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ที่</th>
+                            <th>ชื่อ - สกุล</th>
+                            <th>เพศ</th>
+                            <th>อายุ (ปี)</th>
+                            <th>อายุ (เดือน)</th>
+                            <th>น้ำหนัก (กก.)</th>
+                            <th>ส่วนสูง (ซม.)</th>
+                            <th>น้ำหนักเทียบอายุ</th>
+                            <th>ส่วนสูงเทียบอายุ</th>
+                            <th>น้ำหนักเทียบส่วนสูง</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div class="signature-section">
+                    <div>
+                        <p>ลงชื่อ..................................................</p>
+                        <p>(..................................................)</p>
+                        <p>ครูประจำชั้น</p>
+                    </div>
+                    <div>
+                        <p>ลงชื่อ..................................................</p>
+                        <p>(..................................................)</p>
+                        <p>ผู้อำนวยการโรงเรียน</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=1200');
+        if (!printWindow) return;
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    };
 
     const handleExport = () => {
         const exportData = students.map(student => {
@@ -186,7 +264,7 @@ const HealthRecordModal = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 print:bg-white print:block print:p-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 print:relative print:inset-auto print:bg-white print:block print:p-0 print:h-auto print:w-auto">
             <div className="bg-gray-800/80 backdrop-blur-xl border border-rose-500/50 rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl print:hidden" onClick={(e) => e.stopPropagation()}>
                 <header className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3"><Icon name="HeartPulse" />บันทึกข้อมูลสุขภาพ</h2>

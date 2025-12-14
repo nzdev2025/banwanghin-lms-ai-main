@@ -7,6 +7,7 @@ import StudentModal from './StudentModal';
 import ConfirmationModal from './ConfirmationModal';
 import ImportStudentsModal from './ImportStudentsModal';
 import { useToast } from '../../context/ToastContext';
+import StudentList from './roster_management/StudentList';
 
 
 const RosterManagementModal = ({ onClose }) => {
@@ -42,8 +43,6 @@ const RosterManagementModal = ({ onClose }) => {
                 await setDoc(docRef, dataToUpdate, { merge: true });
                 logActivity('STUDENT_UPDATE', `แก้ไขข้อมูลนักเรียน <strong>${data.firstName}</strong> ในชั้น ป.${selectedGrade.replace('p', '')}`);
             } else {
-                // This is the fix for the final bug we found.
-                // The 'id' field with 'undefined' value is removed before adding the document.
                 // eslint-disable-next-line no-unused-vars
                 const { id, ...dataToAdd } = data;
                 await addDoc(collectionRef, dataToAdd);
@@ -61,7 +60,6 @@ const RosterManagementModal = ({ onClose }) => {
         const studentToDelete = students.find(s => s.id === id);
         if (!studentToDelete) return;
 
-        // --- START: โค้ดที่เพิ่มเข้ามาเพื่อลบข้อมูลที่เกี่ยวข้อง ---
         const savingsBasePath = `artifacts/${appId}/public/data/savings/${selectedGrade}`;
         const savingsDocRef = doc(db, `${savingsBasePath}/students`, id);
         const transactionsColRef = collection(db, `${savingsBasePath}/students/${id}/transactions`);
@@ -133,35 +131,12 @@ const RosterManagementModal = ({ onClose }) => {
                         </div>
                     </div>
                     <div className="p-6 flex-grow overflow-auto">
-                        {isLoading ? (
-                            <div className="flex items-center justify-center h-full"><Icon name="Loader2" className="animate-spin text-sky-400" size={40} /></div>
-                        ) : (
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr>
-                                        <th className="p-3 text-sm font-semibold text-white">เลขที่</th>
-                                        <th className="p-3 text-sm font-semibold text-white">ชื่อ</th>
-                                        <th className="p-3 text-sm font-semibold text-white">นามสกุล</th>
-                                        <th className="p-3 text-sm font-semibold text-white text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {students.map(student => (
-                                        <tr key={student.id} className="border-b border-gray-700/50 hover:bg-white/5">
-                                            <td className="p-3 text-gray-200">{student.studentNumber}</td>
-                                            <td className="p-3 text-gray-200">{student.firstName}</td>
-                                            <td className="p-3 text-gray-200">{student.lastName}</td>
-                                            <td className="p-3 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <button onClick={() => setModal({ type: 'editStudent', data: student })} className="p-1.5 text-sky-400 hover:bg-sky-500/20 rounded"><Icon name="Pencil" size={16} /></button>
-                                                    <button onClick={() => setModal({ type: 'deleteConfirmation', data: { type: 'student', id: student.id, name: `${student.firstName} ${student.lastName}` } })} className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"><Icon name="Trash2" size={16} /></button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                        <StudentList
+                            students={students}
+                            isLoading={isLoading}
+                            onEdit={(student) => setModal({ type: 'editStudent', data: student })}
+                            onDelete={(student) => setModal({ type: 'deleteConfirmation', data: { type: 'student', id: student.id, name: `${student.firstName} ${student.lastName}` } })}
+                        />
                     </div>
                     <footer className="flex items-center justify-end p-4 border-t border-white/10 flex-shrink-0 gap-4">
                         <button onClick={() => setModal({ type: 'addStudent' })} className="flex items-center gap-2 text-sm bg-transparent hover:bg-white/10 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 border border-gray-600"><Icon name="UserPlus" size={16} />เพิ่มนักเรียน</button>

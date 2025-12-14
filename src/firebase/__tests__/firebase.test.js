@@ -10,12 +10,18 @@ vi.mock('firebase/firestore', () => ({
     collection: vi.fn(),
     addDoc: vi.fn(),
     serverTimestamp: vi.fn(),
+    persistentLocalCache: vi.fn(),
+    persistentMultipleTabManager: vi.fn(),
+    connectFirestoreEmulator: vi.fn(),
+    setDoc: vi.fn(),
+    doc: vi.fn(),
 }));
 vi.mock('firebase/auth', () => ({
     getAuth: vi.fn(),
     createUserWithEmailAndPassword: vi.fn(),
     signInWithEmailAndPassword: vi.fn(),
     signOut: vi.fn(),
+    updateProfile: vi.fn(),
 }));
 
 describe('Firebase Config', () => {
@@ -36,7 +42,8 @@ describe('Firebase Config', () => {
     it('uses default appId when VITE_FIRESTORE_APP_ID is not set', async () => {
         // Import the module dynamically
         const { appId } = await import('../firebase');
-        expect(appId).toBe('banwanghin-lms-dev');
+        // Expects default from VITE_FIREBASE_APP_ID
+        expect(appId).toBe('1:123456:web:abcdef');
     });
 
     it('uses VITE_FIRESTORE_APP_ID when set', async () => {

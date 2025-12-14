@@ -1,166 +1,129 @@
-// Firebase initialization and helper utilities
-//
-// This module initializes the Firebase app and exports the Firestore
-// database, authentication object and convenience methods for common
-// operations.  It performs a sanity check on required environment
-// variables to help developers catch misconfiguration early and
-// gracefully handles initialization errors.
-
+// src/firebase/firebase.js
 import { initializeApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  connectFirestoreEmulator,
+  serverTimestamp,
+  setDoc,
+  doc
+} from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
+import { logActivity, initLogger } from '../services/activityLogger'; // Import new service
 
-// Build the Firebase config from environment variables.  We
-// intentionally avoid hardcoding property names to minimise typos and
-// log a warning when variables are missing.  Firebase itself will
-// throw if the configuration is incomplete, but a warning helps
-// identify the root cause quickly.
-const firebaseConfig = {};
-const requiredKeys = [
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
-];
-requiredKeys.forEach((key) => {
-  const val = import.meta.env[key];
-  if (!val) {
-    console.warn(`Firebase environment variable ${key} is not set`);
-  }
-  // Derive the config property name (e.g. API_KEY -> api_key).  We
-  // lowercase to match Firebase JS SDK expectations.  See
-  // https://firebase.google.com/docs/web/setup#config-object
-  // Convert e.g. API_KEY -> apiKey by lowercasing the first word
-  // and capitalising subsequent words.  This matches the property
-  // names expected by the Firebase SDK.  Example: PROJECT_ID
-  // becomes projectId.
-  const parts = key.replace('VITE_FIREBASE_', '').toLowerCase().split('_');
-  const camelCaseKey = parts
-    .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join('');
-  firebaseConfig[camelCaseKey] = val;
-});
-
-// Validate that all required values are present and the appId looks sane.
-const validateFirebaseConfig = (config) => {
-  const keyMap = {
-    apiKey: 'VITE_FIREBASE_API_KEY',
-    authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
-    projectId: 'VITE_FIREBASE_PROJECT_ID',
-    storageBucket: 'VITE_FIREBASE_STORAGE_BUCKET',
-    messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    appId: 'VITE_FIREBASE_APP_ID',
-  };
-
-  const missing = Object.entries(keyMap)
-    .filter(([prop]) => !config[prop])
-    .map(([, envKey]) => envKey);
-
-  const errors = [];
-  if (missing.length) {
-    errors.push(`missing env vars: ${missing.join(', ')}`);
-  }
-
-  const appIdPattern = /^1:\d{6,}:web:[a-f0-9]+$/i;
-  if (config.appId && !appIdPattern.test(config.appId)) {
-    errors.push('VITE_FIREBASE_APP_ID format ไม่ถูกต้อง (คัดลอกจาก Firebase Console ให้ครบทุกตัวอักษร)');
-  }
-
-  if (errors.length) {
-    console.error(`[Firebase config invalid] ${errors.join(' | ')}`);
-    return false;
-  }
-
-  return true;
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-const firebaseConfigIsValid = validateFirebaseConfig(firebaseConfig);
-if (!firebaseConfigIsValid) {
-  throw new Error(
-    'Firebase config ไม่ถูกต้อง กรุณาตรวจสอบค่า .env (คัดลอกจาก Firebase Console ให้ครบถ้วน)',
-  );
-}
-
+// Initialize Firebase
 let app;
 let db;
 let auth;
-if (firebaseConfigIsValid) {
-  try {
-    app = initializeApp(firebaseConfig);
-    // Prefer auto-detection of the best transport first; fall back to forced long polling if needed.
-    const firestoreSettings = {
-      experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false,
-    };
-    try {
-      db = initializeFirestore(app, firestoreSettings);
-    } catch (firestoreInitError) {
-      console.warn('Primary Firestore init failed, retrying with forced long polling', firestoreInitError);
-      db = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
-        useFetchStreams: false,
-      });
-    }
-    auth = getAuth(app);
-  } catch (e) {
-    console.error('Firebase initialization error:', e);
-    if (app && !db) {
-      // fallback ถ้า init ด้วย long polling มีปัญหา
-      db = getFirestore(app);
-    }
+let storage;
+let functions;
+
+try {
+  app = initializeApp(firebaseConfig);
+
+  // Initialize Firestore with Offline Persistence
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+
+  initLogger(db, import.meta.env.VITE_FIRESTORE_APP_ID || firebaseConfig.appId);
+
+  auth = getAuth(app);
+  storage = getStorage(app);
+  functions = getFunctions(app);
+
+  if (import.meta.env.VITE_USE_EMULATOR === 'true') {
+    connectFirestoreEmulator(db, 'localhost', 8080);
+    console.log('Connected to Firestore Emulator');
+  }
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  // Fallback if long polling fails
+  if (app && !db) {
+    db = getFirestore(app);
   }
 }
 
-// Export a default appId in case one is injected at runtime.  When
-// compiled for production this constant can be replaced with a global
-// variable by your bundler to target a different Firestore path.
-export const appId = typeof __app_id !== 'undefined' ? __app_id : (import.meta.env.VITE_FIRESTORE_APP_ID || 'banwanghin-lms-dev');
+// --- Auth Helpers ---
 
-/**
- * Record an activity log entry in Firestore.  Each entry stores a
- * message, type, optional details and a server-generated timestamp.
- * Errors are caught so that logging never interrupts the main flow of
- * the application.
- *
- * @param {string} type A category for the log entry (e.g. 'info' or 'error').
- * @param {string} message A human-readable description of the event.
- * @param {object} [details={}] Additional structured data about the event.
- */
-export const logActivity = async (type, message, details = {}) => {
-  if (!db) return;
+const handleLogin = async (email, password) => {
   try {
-    const logPath = `artifacts/${appId}/public/data/activity_log`;
-    await addDoc(collection(db, logPath), {
-      type,
-      message,
-      details,
-      timestamp: serverTimestamp(),
-    });
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    await logActivity('LOGIN', `เข้าสู่ระบบสำเร็จ: ${user.email}`, 'success');
+    return user;
   } catch (error) {
-    console.error('Error logging activity:', error);
+    console.error('Login error:', error);
+    await logActivity('LOGIN_FAILED', `เข้าสู่ระบบล้มเหลว: ${email} - ${error.message}`, 'error');
+    throw error;
   }
 };
 
-// Authentication helpers.  These thin wrappers forward to Firebase
-// methods and could be extended to handle custom error reporting or
-// analytics in a single place.
-export const handleSignUp = (email, password) => {
-  return createUserWithEmailAndPassword(auth, email, password);
-};
-export const handleLogin = (email, password) => {
-  return signInWithEmailAndPassword(auth, email, password);
-};
-export const handleLogout = () => {
-  return signOut(auth);
+const handleLogout = async () => {
+  try {
+    const user = auth.currentUser;
+    await signOut(auth);
+    if (user) {
+      await logActivity('LOGOUT', `ออกจากระบบสำเร็จ: ${user.email}`, 'info');
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    throw error;
+  }
 };
 
-// Export Firestore and auth along with onAuthStateChanged for consumers
-export { db, auth, onAuthStateChanged };
+const handleSignUp = async (email, password, displayName = 'Admin') => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    await updateProfile(user, { displayName });
+
+    // Create initial user doc if needed
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(userDocRef, {
+      email: user.email,
+      role: 'admin', // Default role for new signups in this context
+      createdAt: serverTimestamp(),
+    }, { merge: true });
+
+    await logActivity('SIGNUP', `สร้างบัญชีใหม่สำเร็จ: ${email}`, 'success');
+    return user;
+  } catch (error) {
+    console.error('Signup error:', error);
+    await logActivity('SIGNUP_FAILED', `สร้างบัญชีล้มเหลว: ${email} - ${error.message}`, 'error');
+    throw error;
+  }
+};
+
+export {
+  app,
+  db,
+  auth,
+  storage,
+  functions,
+  handleLogin,
+  handleLogout,
+  handleSignUp,
+  logActivity,
+  firebaseConfig,
+  onAuthStateChanged
+};
+
+// Export appId separately if needed elsewhere
+export const appId = import.meta.env.VITE_FIRESTORE_APP_ID || firebaseConfig.appId;

@@ -136,11 +136,24 @@ const SavingsReportModal = ({ onClose }) => {
             { key: 'amount', label: 'จำนวนเงิน' },
             { key: 'formattedDate', label: 'วันที่ทำรายการ' },
         ];
-        const data = transactions.map(t => ({
-            ...t,
-            type: t.type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน',
-            formattedDate: t.timestamp?.toDate?.()?.toLocaleString('th-TH') || '-',
-        }));
+        const data = transactions.map(t => {
+            // Format date as YYYY-MM-DD HH:mm for better Excel compatibility
+            let dateStr = '-';
+            if (t.timestamp?.toDate) {
+                const d = t.timestamp.toDate();
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const hours = String(d.getHours()).padStart(2, '0');
+                const mins = String(d.getMinutes()).padStart(2, '0');
+                dateStr = `${year}-${month}-${day} ${hours}:${mins}`;
+            }
+            return {
+                ...t,
+                type: t.type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน',
+                formattedDate: dateStr,
+            };
+        });
         exportToCSV(data, `savings_report_${formatDateForFilename()}`, columns);
     };
 

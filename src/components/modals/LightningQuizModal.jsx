@@ -231,6 +231,12 @@ const LightningQuizModal = ({ onClose }) => {
       setTimeLeft(null);
       return undefined;
     }
+    // Fix: Disable timer if manual mode
+    if (!isAutoAdvance) {
+      setTimeLeft(null);
+      return;
+    }
+
     const interval = setInterval(() => {
       const start = sessionDoc?.questionStartedAt?.toDate
         ? sessionDoc.questionStartedAt.toDate()

@@ -16,6 +16,21 @@
     @apply text-gray-200;
   }
 
+  /* Style date picker calendar icon to be white for dark theme */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+
+  /* Firefox date picker styling */
+  input[type="date"],
+  input[type="month"],
+  input[type="datetime-local"] {
+    color-scheme: dark;
+  }
+
   .a4-paper {
     width: 210mm;
     min-height: 297mm;

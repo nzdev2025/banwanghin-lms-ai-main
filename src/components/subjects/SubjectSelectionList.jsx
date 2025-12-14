@@ -1,10 +1,9 @@
-// src/components/modals/SubjectSelectionView.jsx
-
 import React, { useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import ClassCard from '../shared/ClassCard';
 import Icon from '../../icons/Icon';
 
-const SubjectSelectionView = ({ subjects, onSubjectClick }) => {
+const SubjectSelectionList = ({ subjects, onSubjectClick }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredSubjects = useMemo(() => {
@@ -66,4 +65,9 @@ const SubjectSelectionView = ({ subjects, onSubjectClick }) => {
     );
 };
 
-export default SubjectSelectionView;
+SubjectSelectionList.propTypes = {
+    subjects: PropTypes.array.isRequired,
+    onSubjectClick: PropTypes.func.isRequired
+};
+
+export default SubjectSelectionList;

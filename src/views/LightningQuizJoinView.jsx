@@ -507,11 +507,11 @@ const LightningQuizJoinView = () => {
                     </div>
                   </div>
 
-                      {scoreboard.length > 0 && (
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/80">
-                          <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-3">Top 3</p>
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            {scoreboard.slice(0, 3).map((item, idx) => (
+                  {scoreboard.length > 0 && (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/80">
+                      <p className="text-[12px] uppercase tracking-[0.28em] text-white/60 mb-3">Top 3</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {scoreboard.slice(0, 3).map((item, idx) => (
                           <div
                             key={item.alias + idx}
                             className="rounded-xl border border-white/10 bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#0b1224] p-3 text-center shadow-[0_12px_30px_-22px_rgba(0,0,0,0.9)]"
@@ -536,9 +536,8 @@ const LightningQuizJoinView = () => {
                       return (
                         <div
                           key={idx}
-                          className={`rounded-xl border p-3 text-sm ${
-                            isCorrect ? 'border-emerald-400/50 bg-emerald-500/10' : 'border-white/10 bg-white/5'
-                          }`}
+                          className={`rounded-xl border p-3 text-sm ${isCorrect ? 'border-emerald-400/50 bg-emerald-500/10' : 'border-white/10 bg-white/5'
+                            }`}
                         >
                           <p className="text-[12px] uppercase tracking-[0.28em] text-white/60">ข้อ {idx + 1}</p>
                           <p className="font-semibold text-white mt-1">{q.text}</p>
@@ -600,18 +599,100 @@ const LightningQuizJoinView = () => {
                       const isLocked = submittedForQuestion === currentQuestionIndex;
                       const isReveal = sessionDetail?.revealAnswer;
                       const isCorrect = Number(currentQuestion.answerIndex) === idx;
+
+                      // Auto-submit when clicking an option
+                      const handleOptionClick = async () => {
+                        if (isLocked || isReveal || isSubmitting) return;
+                        setSelectedOption(idx);
+
+                        // Auto-submit immediately after selecting
+                        if (
+                          db &&
+                          sessionDetail &&
+                          sessionDetail.status === 'running' &&
+                          currentQuestionIndex !== null &&
+                          alias.trim() &&
+                          timeLeft !== 0 &&
+                          !sessionDetail.revealAnswer &&
+                          !participantStatus?.banned
+                        ) {
+                          const now = Date.now();
+                          if (now - lastSubmitAtRef.current < 800) {
+                            setError('ส่งถี่เกินไป กรุณารอสักครู่');
+                            return;
+                          }
+                          lastSubmitAtRef.current = now;
+                          setIsSubmitting(true);
+                          setError('');
+                          try {
+                            const participantsRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/participants`);
+                            const meQuery = query(participantsRef, where('alias', '==', alias.trim()), where('deviceId', '==', deviceId), limit(1));
+                            const meSnap = await getDocs(meQuery);
+                            if (meSnap.empty) {
+                              setError('กรุณายืนยันชื่อเล่นใหม่อีกครั้ง');
+                              setIsSubmitting(false);
+                              setAliasSubmitted(false);
+                              return;
+                            }
+
+                            const answersRef = collection(db, `${quizSessionsPath}/${sessionDetail.id}/answers`);
+                            const tokenForQuestion = sessionDetail.questionTokens?.[currentQuestionIndex] || null;
+                            const dupFilters = [
+                              where('questionIndex', '==', currentQuestionIndex),
+                              where('deviceId', '==', deviceId),
+                            ];
+                            if (tokenForQuestion) {
+                              dupFilters.push(where('questionToken', '==', tokenForQuestion));
+                            }
+                            const dupQuery = query(answersRef, ...dupFilters, limit(1));
+                            const dupSnap = await getDocs(dupQuery);
+                            if (!dupSnap.empty) {
+                              setSubmittedForQuestion(currentQuestionIndex);
+                              setIsSubmitting(false);
+                              return;
+                            }
+
+                            const answerId = `q${currentQuestionIndex}_dev_${deviceId}`;
+                            await setDoc(doc(answersRef, answerId), {
+                              alias: alias.trim(),
+                              deviceId,
+                              optionIndex: idx,
+                              questionIndex: currentQuestionIndex,
+                              questionToken: tokenForQuestion,
+                              submittedAt: new Date(),
+                            }, { merge: false });
+                            if (participantDocId) {
+                              await updateDoc(doc(participantsRef, participantDocId), {
+                                lastAnswerAt: new Date(),
+                              });
+                            }
+                            setSubmittedForQuestion(currentQuestionIndex);
+                          } catch (err) {
+                            console.error('auto submit failed', err);
+                            if (err?.code === 'permission-denied') {
+                              setSubmittedForQuestion(currentQuestionIndex);
+                              setError('ส่งคำตอบแล้ว');
+                            } else {
+                              setError('ส่งคำตอบไม่สำเร็จ');
+                            }
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }
+                      };
+
                       return (
                         <button
                           key={idx}
                           type="button"
-                          disabled={isLocked || isReveal}
-                          onClick={() => setSelectedOption(idx)}
+                          disabled={isLocked || isReveal || isSubmitting}
+                          onClick={handleOptionClick}
                           className={[
                             'flex min-h-[72px] items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition',
                             isSelected
                               ? 'border-amber-300 bg-amber-400/20 text-white shadow-[0_12px_30px_-20px_rgba(0,0,0,0.8)]'
                               : 'border-white/10 bg-white/5 text-white/85 hover:border-white/25 hover:bg-white/10',
-                            isLocked || isReveal ? 'opacity-70 cursor-not-allowed' : '',
+                            isLocked || isReveal || isSubmitting ? 'opacity-70 cursor-not-allowed' : '',
                             isReveal && isCorrect ? 'ring-2 ring-emerald-400' : '',
                           ].join(' ')}
                         >
@@ -653,20 +734,20 @@ const LightningQuizJoinView = () => {
                     </p>
                   )}
                 </div>
-      ) : !sessionDetail ? (
-          <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
-            <div className="text-center text-white/70">
-              <Icon name="Loader2" size={36} className="mx-auto animate-spin text-white/60" />
-              <p className="mt-2">กำลังโหลดเกม...</p>
-              <p className="text-xs text-white/50">ถ้าใช้เวลาเกิน 5 วินาที ให้กดรีเฟรชหรือใส่ PIN ใหม่</p>
-            </div>
-          </div>
-        ) : (
-        <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
-          <div className="text-center text-white/70">
-            <Icon name="Hourglass" size={36} className="mx-auto text-white/40" />
-            <p className="mt-2">โปรดรอครูเริ่มคำถาม</p>
-            <p className="text-xs text-white/50">ระบบตอบกลับนักเรียนจะค่อยๆ เปิดให้ใช้งาน</p>
+              ) : !sessionDetail ? (
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
+                  <div className="text-center text-white/70">
+                    <Icon name="Loader2" size={36} className="mx-auto animate-spin text-white/60" />
+                    <p className="mt-2">กำลังโหลดเกม...</p>
+                    <p className="text-xs text-white/50">ถ้าใช้เวลาเกิน 5 วินาที ให้กดรีเฟรชหรือใส่ PIN ใหม่</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10">
+                  <div className="text-center text-white/70">
+                    <Icon name="Hourglass" size={36} className="mx-auto text-white/40" />
+                    <p className="mt-2">โปรดรอครูเริ่มคำถาม</p>
+                    <p className="text-xs text-white/50">ระบบตอบกลับนักเรียนจะค่อยๆ เปิดให้ใช้งาน</p>
                   </div>
                 </div>
               )}

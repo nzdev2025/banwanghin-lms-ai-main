@@ -125,7 +125,7 @@ const AIWorksheetGeneratorModal = ({ onClose }) => {
     };
 
     const handlePrint = () => {
-        const html = buildPrintableWorksheetHTML({ worksheetData, formData });
+        const html = buildPrintableWorksheetHTML({ worksheetData, formData, schoolName: siteConfig.schoolName });
         printWorksheetHtml(html);
     };
     const placeholders = { worksheet: { title: "ใบงานเรื่อง", topic: "เช่น ส่วนประกอบของพืช..." }, exam: { title: "แบบทดสอบวัดผล", topic: "เช่น ประวัติศาสตร์สุโขทัย..." } };
