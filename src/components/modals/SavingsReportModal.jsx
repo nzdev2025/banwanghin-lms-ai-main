@@ -137,16 +137,16 @@ const SavingsReportModal = ({ onClose }) => {
             { key: 'formattedDate', label: 'วันที่ทำรายการ' },
         ];
         const data = transactions.map(t => {
-            // Format date as YYYY-MM-DD HH:mm for better Excel compatibility
+            // Format date as readable text for Excel (prefix with ' to force text)
             let dateStr = '-';
             if (t.timestamp?.toDate) {
                 const d = t.timestamp.toDate();
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear() + 543; // Convert to Buddhist year
                 const hours = String(d.getHours()).padStart(2, '0');
                 const mins = String(d.getMinutes()).padStart(2, '0');
-                dateStr = `${year}-${month}-${day} ${hours}:${mins}`;
+                dateStr = `${day}/${month}/${year} ${hours}:${mins}`;
             }
             return {
                 ...t,
