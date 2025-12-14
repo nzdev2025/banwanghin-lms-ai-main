@@ -75,7 +75,7 @@ const AssignmentModal = ({ onClose, onSave, initialData = null }) => {
                                 name="dueDate"
                                 value={formData.dueDate}
                                 onChange={handleChange}
-                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white"
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white date-picker-white-icon"
                             />
                         </div>
                         <div className="flex justify-end gap-4 mt-8">

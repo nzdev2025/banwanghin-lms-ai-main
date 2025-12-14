@@ -51,7 +51,7 @@ const StudentModal = ({ onClose, onSave, initialData = null }) => {
                         <div className="mb-4">
                             <label htmlFor="birthDate" className="block text-sm font-medium text-gray-300 mb-1">วันเกิด</label>
                             {/* ลบ required ออก */}
-                            <input type="date" id="birthDate" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                            <input type="date" id="birthDate" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 date-picker-white-icon" />
                         </div>
                     </div>
                     {/* `firstName` และ `lastName` ยังคง `required` ไว้ */}

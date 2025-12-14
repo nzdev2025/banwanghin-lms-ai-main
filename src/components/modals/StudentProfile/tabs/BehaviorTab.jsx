@@ -63,7 +63,7 @@ const BehaviorTab = ({
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white"
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white date-picker-white-icon"
                         />
                         {startDate && (
                             <button

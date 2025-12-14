@@ -124,7 +124,7 @@ const BehaviorLoggerModal = ({ student, grade, onClose }) => {
                                 value={selectedDate}
                                 max={new Date().toISOString().split('T')[0]}
                                 onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white"
+                                className="w-full bg-gray-900/50 border border-gray-600 rounded-lg p-2 text-white date-picker-white-icon"
                             />
                         </div>
                         <div>
